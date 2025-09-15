@@ -317,6 +317,48 @@ export const LdapIcon = ({
   );
 }
 
+export const LapsIcon = ({
+  size = 24,
+  ...props
+}: IconSvgProps) => {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      height={size}
+      width={size}
+      {...props}
+    >
+      {/* Kilit gövdesi */}
+      <rect
+        x="6.75"
+        y="10.5"
+        width="10.5"
+        height="9"
+        rx="2"
+        ry="2"
+      />
+      {/* Kilit üst halka */}
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8.25 10.5V7.5a3.75 3.75 0 017.5 0v3"
+      />
+      {/* Anahtar deliği */}
+      <circle cx="12" cy="15" r="1.25" fill="currentColor" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 16.25v1.75"
+      />
+    </svg>
+  );
+};
+
+
 
 export const UserGroupIcon = ({
   size = 24,

@@ -6,7 +6,7 @@ import {
 } from "@heroui/navbar";
 import NextLink from "next/link";
 import { ThemeSwitch } from "@/components/theme-switch";
-import { HomeIcon, PolicyIcon, UserIcon, PCIcon, BookIcon, LdapIcon } from "./icons";
+import { HomeIcon, PolicyIcon, UserIcon, PCIcon, BookIcon, LdapIcon,LapsIcon } from "./icons";
 
 export const Navbar = () => {
   return (
@@ -52,6 +52,15 @@ export const Navbar = () => {
                 href="/ldap"
               >
                 <LdapIcon/> LDAP
+              </NextLink>
+            </NavbarItem>
+            <NavbarItem key="/laps">
+              <NextLink
+                className="flex gap-1 hover:text-teal-500"
+                color="foreground"
+                href="/laps"
+              >
+                <LapsIcon/> LAPS
               </NextLink>
             </NavbarItem>
             <NavbarItem key="/clients">
