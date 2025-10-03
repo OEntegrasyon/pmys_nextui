@@ -317,6 +317,28 @@ export const LdapIcon = ({
   );
 }
 
+export const LdapPolicyIcon = ({ size = 24, ...props }: IconSvgProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    height={size}
+    width={size}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    {...props}
+  >
+    {/* Shield */}
+    <path
+      d="M12 3.5l6 2.2v5.2c0 3.9-2.6 7.5-6 8.6-3.4-1.1-6-4.7-6-8.6V5.7l6-2.2z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    {/* Keyhole */}
+    <circle cx="12" cy="11.5" r="1.4" />
+    <path d="M12 13v2.2" strokeLinecap="round" />
+  </svg>
+);
+
 export const LapsIcon = ({
   size = 24,
   ...props

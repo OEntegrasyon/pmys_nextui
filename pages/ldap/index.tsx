@@ -233,7 +233,7 @@ function useGroupOptions(tree: LdapTree | null, orgDn?: string) {
 }
 
 // Build tree nodes for rendering + search filtering
-function buildNodes(tree: LdapTree, query: string) {
+function buildTreeNodes(tree: LdapTree, query: string) {
   const q = query.trim().toLowerCase();
   const match = (s: string | undefined) => (q ? (s || "").toLowerCase().includes(q) : true);
   const result: { id: string; kind: NodeKind; label: string; dn: string; children?: any[] } = {
@@ -342,7 +342,7 @@ export default function LdapManagementPage() {
   const orgOptions = useOrgOptions(tree);
   const groupOptions = useGroupOptions(tree, userForm.organizationDn || undefined);
 
-  const builtTree = useMemo(() => (tree ? buildNodes(tree, search) : null), [tree, search]);
+  const builtTree = useMemo(() => (tree ? buildTreeNodes(tree, search) : null), [tree, search]);
   useEffect(() => {
     if (!userModalOpen) return;             // modal kapalıysa çalışmasın
     if (!userForm.organizationDn || !userForm.groupDn) return;    // org veya grup seçili değilse bekle
@@ -1202,6 +1202,15 @@ function TreeNode({node, level, expanded, selected, onToggle, onSelect}: TreeNod
   const isExpanded = expanded.has(node.dn);
   const padding = 8 + level * 16;
 
+  const KindIcon = () =>
+      node.kind === "organization" ? (
+        <OrganizationIcon size={16} />
+      ) : node.kind === "group" ? (
+        <UserGroupIcon size={16} />
+      ) : node.kind === "user" ? (
+        <UserIcon size={16} />
+      ) : null;
+
   return (
     <div>
       <div
@@ -1224,6 +1233,9 @@ function TreeNode({node, level, expanded, selected, onToggle, onSelect}: TreeNod
           ) : (
             <span className="w-5" />
           )}
+          <span className="opacity-80">
+            <KindIcon />
+          </span>
           <span className={classNames("font-medium", node.kind === "organization" && "text-blue-700", node.kind === "group" && "text-purple-700", node.kind === "user" && "text-gray-800")}>{node.label}</span>
           {node.kind === "user" && <Chip size="sm" variant="flat">uid</Chip>}
         </div>
