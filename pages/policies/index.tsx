@@ -1,7 +1,5 @@
 import DefaultLayout from "@/layouts/default";
-import { useEffect, useState } from 'react';
-import { ChangeEvent } from 'react';
-
+import { useEffect, useState, useMemo, ChangeEvent } from 'react';
 import { Select, SelectItem} from "@heroui/select";
 import { Input} from "@heroui/input";
 import { Button} from "@heroui/button";
@@ -30,6 +28,7 @@ type PolicyType = {
   policy_type: string;
   policy_type_name: string; 
   policy_type_parameters: Record<string, any>; 
+  is_cis: boolean;
 };
 
 type User = {
@@ -69,6 +68,22 @@ export default function DocsPage() {
     policy_type: '',
   });
 
+  const { cisPolicies, otherPolicies } = useMemo(() => {
+    if (!policies) {
+      return { cisPolicies: [], otherPolicies: [] };
+    }
+    return {
+      cisPolicies: policies.filter(p => p.is_cis),
+      otherPolicies: policies.filter(p => !p.is_cis),
+    };
+  }, [policies]);
+
+  const areAllCisSelected = useMemo(() => {
+    if (cisPolicies.length === 0) return false;
+    return cisPolicies.every(p => selPolicies.includes(p.id));
+  }, [cisPolicies, selPolicies]);
+
+
   const fetchPolicies = () => {
     fetch(`${API_BASE}/policy/policies/`)
       .then(res => res.json())
@@ -101,6 +116,15 @@ export default function DocsPage() {
     fetchUsers();
   }, []);
 
+  const handleMasterCisChange = (isSelected: boolean) => {
+    const cisPolicyIds = cisPolicies.map(p => p.id);
+
+    if (isSelected) {
+        setSelPolicies(prev => Array.from(new Set([...prev, ...cisPolicyIds])));
+    } else {
+        setSelPolicies(prev => prev.filter(id => !cisPolicyIds.includes(id)));
+    }
+};
   const handleCreatePolicy = async () => {
     try {
       const res = await fetch(`${API_BASE}/policy/policies/`, {
@@ -249,7 +273,7 @@ export default function DocsPage() {
         return updatedUsers;
       }
     });
-  }
+}
 
   function toggleGroup(groupId: number) {
     setSelGroups(prevGroups => {
@@ -440,7 +464,6 @@ export default function DocsPage() {
                   setPolicyModalOpen(false);
                   setEditPolicy(null);
                   setNewPolicy({name: '', description: '', parameters: {}, policy_type: '' });
-                  setSelectedPolicyType(null);
                 }}
               >
                 İptal
@@ -460,168 +483,186 @@ export default function DocsPage() {
         <PolicyIcon className="text-blue-600"/>
         Politika Ata
       </h1>
-      <section className="flex gap-4 py-8 md:py-10">
-        <div className="inline-block w-1/4 p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-150">
-          <h4 className="flex gap-2 font-medium mb-2"><OrganizationIcon className="text-blue-500"/> Organizasyonlar</h4>
-          <Divider className="my-2" />
-          {uniqueOrgs.map(org => (
-            <Checkbox
-              key={org.id}
-              isSelected={selOrgs.includes(org.id)}
-              onValueChange={() => toggleOrganization(org.id)}
-              className="block mb-1"
-            >
-              {org.name}
-            </Checkbox>
-          ))}
-        </div>
-        <div className="inline-block w-1/4 p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-150">
-          <h4 className="flex gap-2 font-medium mb-2"><UserGroupIcon className="text-purple-500"/> Gruplar</h4>
-          <Divider className="my-2" />
-          {uniqueGroups.map(group => (
-            <Checkbox
-              key={group.id}
-              isSelected={selGroups.includes(group.id)}
-              onValueChange={() => toggleGroup(group.id)}
-              className="block mb-1"
-            >
-              {group.name}
-            </Checkbox>
-          ))}
-        </div>
-        <div className="inline-block w-1/2 p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-150">
-          <h4 className="flex gap-2 font-medium mb-2"><UserIcon className="text-green-500"/> Kullanıcılar</h4>
-          <Divider className="my-2" />
-          {users?.map(user => (
-            <Checkbox
-              key={user.id}
-              isSelected={selUsers.includes(user.id)}
-              onValueChange={() => toggleUserWithPolicies(user)}
-              className="block mb-1"
-            >
-              {user.username} ({user.first_name} {user.last_name})
-            </Checkbox>
-          ))}
-        </div>
-      </section>
-        <div className="inline-block w-full p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-150">
-          <h4 className="flex gap-2 font-medium mb-2"><PolicyIcon className="text-emerald-500"/> Politikalar</h4>
-          <Divider className="my-2" />
-          {policies?.map(policy => (
-            <Checkbox
-              key={policy.id}
-              isSelected={selPolicies.includes(policy.id)}
-              onValueChange={(isSelected: boolean) => {
-                setSelPolicies(prev =>
-                  isSelected
-                    ? [...prev, policy.id]
-                    : prev.filter(id => id !== policy.id)
-                );
-              }}
-              className="block mb-1"
-            >
-              {policy.name}
-            </Checkbox>
-          ))}
-        </div>
-        <div className="justify-end flex md:flex-row gap-4 mt-4">
-          <Button
-            color="primary"
-            className="mt-4 text-xl p-6"
-            onPress={() => {
-              handlePolicyAssignment(selUsers, selPolicies);
-            }}
-          >
-            Politikaları Ata
-          </Button>
-        </div>
+      <p className="text-sm text-gray-500">Kullanıcılar ve gruplar için politikaları atayın.</p>
+      <div className="flex flex-col gap-4 py-8 md:py-10">
+        <section className="flex flex-col md:flex-row gap-4">
+            <div className="w-full md:w-1/4 p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-96">
+                <h4 className="flex gap-2 font-medium mb-2"><OrganizationIcon className="text-blue-500"/> Organizasyonlar</h4>
+                <Divider className="my-2" />
+                {uniqueOrgs.map(org => (
+                  <Checkbox key={org.id} isSelected={selOrgs.includes(org.id)} onValueChange={() => toggleOrganization(org.id)} className="block mb-1">
+                    {org.name}
+                  </Checkbox>
+                ))}
+            </div>
+            <div className="w-full md:w-1/4 p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-96">
+                <h4 className="flex gap-2 font-medium mb-2"><UserGroupIcon className="text-purple-500"/> Gruplar</h4>
+                <Divider className="my-2" />
+                {uniqueGroups.map(group => (
+                  <Checkbox key={group.id} isSelected={selGroups.includes(group.id)} onValueChange={() => toggleGroup(group.id)} className="block mb-1">
+                    {group.name}
+                  </Checkbox>
+                ))}
+            </div>
+            <div className="w-full md:w-1/2 p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-96">
+                <h4 className="flex gap-2 font-medium mb-2"><UserIcon className="text-green-500"/> Kullanıcılar</h4>
+                <Divider className="my-2" />
+                {users?.map(user => (
+                  <Checkbox key={user.id} isSelected={selUsers.includes(user.id)} onValueChange={() => toggleUserWithPolicies(user)} className="block mb-1">
+                    {user.username} ({user.first_name} {user.last_name})
+                  </Checkbox>
+                ))}
+            </div>
+        </section>
+
+        <section>
+            <div className="w-full p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-96">
+              <h4 className="flex gap-2 font-medium mb-2"><PolicyIcon className="text-emerald-500"/> Politikalar</h4>
+              <Divider className="my-2" />
+              <div className="mb-4">
+                  <h5 className="font-semibold text-md mb-2">CIS Politikaları</h5>
+                  <Checkbox onValueChange={handleMasterCisChange} isSelected={areAllCisSelected}>
+                      <span className="font-bold">Hepsini Seç / Bırak</span>
+                  </Checkbox>
+                  <div className="pl-4 mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4">
+                      {cisPolicies.map(policy => (
+                          <Checkbox key={policy.id} isSelected={selPolicies.includes(policy.id)} onValueChange={(isSelected: boolean) => setSelPolicies(prev => isSelected ? [...prev, policy.id] : prev.filter(id => id !== policy.id))} className="block mb-1">
+                              {policy.name}
+                          </Checkbox>
+                      ))}
+                  </div>
+              </div>
+              <Divider className="my-2" />
+              <div className="mt-4">
+                  <h5 className="font-semibold text-md mb-2">Diğer Politikalar</h5>
+                  <div className="pl-4 mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4">
+                    {otherPolicies.map(policy => (
+                        <Checkbox key={policy.id} isSelected={selPolicies.includes(policy.id)} onValueChange={(isSelected: boolean) => setSelPolicies(prev => isSelected ? [...prev, policy.id] : prev.filter(id => id !== policy.id))} className="block mb-1">
+                            {policy.name}
+                        </Checkbox>
+                    ))}
+                  </div>
+              </div>
+            </div>
+        </section>
+      </div>
+
+      <div className="justify-end flex md:flex-row gap-4 mt-4">
+        <Button color="primary" className="text-xl p-6" onPress={() => handlePolicyAssignment(selUsers, selPolicies)}>
+          Politikaları Ata
+        </Button>
+      </div>
 
       <Divider className="my-6" />
-      <section className="flex flex-col gap-4 py-8 md:py-10">
-        <div className="inline-block w-full overflow-x-auto shadow rounded-2xl border border-gray-200 overflow-y-auto max-h-150">
-          <div className="flex justify-between items-center px-6 pt-6 pb-2">
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <PolicyIcon className="text-blue-600"/>
-              Politikalar
-            </h1>
-            <Button 
-              color="primary"
-              onPress={() => {
-                setSelectedPolicyType(null);
-                setPolicyModalOpen(true)}}
-            >
+      
+      <section className="flex flex-col gap-8 py-8 md:py-10">
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                <PolicyIcon className="text-blue-600"/>
+                CIS Politikaları Listesi
+            </h2>
+            <Button color="primary" onPress={() => { setEditPolicy(null); setPolicyModalOpen(true)}}>
               + Politika Ekle
             </Button>
           </div>
-          <p className="text-sm px-6 pb-4">
-            Sistemde kayıtlı tüm politikaların listesi.
-          </p>
-          <Table aria-label="Kullanıcılar tablosu">
-            <TableHeader>
-                <TableColumn >Politika</TableColumn>
-                <TableColumn >Açıklama</TableColumn>
-                <TableColumn >Parametreler</TableColumn>
-                <TableColumn >Oluşturulma Zamanı</TableColumn>
-                <TableColumn >Düzenle</TableColumn>
-            </TableHeader>
-          {policies && policies.length > 0 ? (
-            <TableBody>
-              {policies.map((policy) => (
-                <TableRow key={policy.id}>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <p className="text-bold text-sm">{policy.name}</p>
-                      <p className="text-bold text-sm text-default-400">{policy.policy_type_name}</p>
-                    </div>
-                  </TableCell>
-                  <TableCell>{policy.description}</TableCell>
-                  <TableCell>
-                    {policy.parameters && Object.keys(policy.parameters).length === 0 ? (
-                      <p className="text-default-400">Parametre yok</p>
-                    ) : (
+          <div className="shadow rounded-2xl border border-gray-200">
+            <Table aria-label="CIS Politikaları tablosu">
+              <TableHeader>
+                  <TableColumn>Politika</TableColumn>
+                  <TableColumn>Açıklama</TableColumn>
+                  <TableColumn>Parametreler</TableColumn>
+                  <TableColumn>Oluşturulma</TableColumn>
+                  <TableColumn>Düzenle</TableColumn>
+              </TableHeader>
+              <TableBody items={cisPolicies} emptyContent={"CIS Politikası Yok."}>
+                {(policy) => (
+                  <TableRow key={policy.id}>
+                    <TableCell>
                       <div className="flex flex-col">
-                        {Object.entries(policy.parameters).map(([key, value]) => 
-                            <p key={key} className="text-sm"><strong>{key}</strong>: {value}</p>
-                        )}
+                        <p className="text-bold text-sm">{policy.name}</p>
+                        <p className="text-bold text-sm text-default-400">{policy.policy_type_name}</p>
                       </div>
+                    </TableCell>
+                    <TableCell>{policy.description}</TableCell>
+                    <TableCell>
+                      {policy.parameters && Object.keys(policy.parameters).length === 0 ? (
+                        <p className="text-default-400">Parametre yok</p>
+                      ) : (
+                        <div className="flex flex-col">
+                          {Object.entries(policy.parameters).map(([key, value]) => 
+                              <p key={key} className="text-sm"><strong>{key}</strong>: {String(value)}</p>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(policy.created_at).toLocaleDateString('tr-TR', {
+                        year: 'numeric', month: '2-digit', day: '2-digit',
+                      })}
+                    </TableCell>
+                    <TableCell>
+                      <button onClick={() => { setEditPolicy(policy); setPolicyModalOpen(true); }} className="text-blue-600 hover:text-blue-800 cursor-pointer"><EditIcon/></button>
+                      <button onClick={() => { deletePolicy(policy.id, policy.name) }} className="text-red-600 hover:text-red-800 cursor-pointer"><DeleteIcon/></button>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+
+        <div>
+            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+                <PolicyIcon className="text-gray-600"/>
+                Diğer Politikalar Listesi
+            </h2>
+             <div className="shadow rounded-2xl border border-gray-200 mt-4">
+                <Table aria-label="Diğer Politikalar tablosu">
+                  <TableHeader>
+                      <TableColumn >Politika</TableColumn>
+                      <TableColumn >Açıklama</TableColumn>
+                      <TableColumn >Parametreler</TableColumn>
+                      <TableColumn >Oluşturulma</TableColumn>
+                      <TableColumn >Düzenle</TableColumn>
+                  </TableHeader>
+                  <TableBody items={otherPolicies} emptyContent={"Diğer Politikalardan Yok."}>
+                    {(policy) => (
+                      <TableRow key={policy.id}>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <p className="text-bold text-sm">{policy.name}</p>
+                            <p className="text-bold text-sm text-default-400">{policy.policy_type_name}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>{policy.description}</TableCell>
+                        <TableCell>
+                          {policy.parameters && Object.keys(policy.parameters).length === 0 ? (
+                            <p className="text-default-400">Parametre yok</p>
+                          ) : (
+                            <div className="flex flex-col">
+                              {Object.entries(policy.parameters).map(([key, value]) => 
+                                  <p key={key} className="text-sm"><strong>{key}</strong>: {String(value)}</p>
+                              )}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {new Date(policy.created_at).toLocaleDateString('tr-TR', {
+                            year: 'numeric', month: '2-digit', day: '2-digit',
+                          })}
+                        </TableCell>
+                        <TableCell>
+                           <button onClick={() => { setEditPolicy(policy); setPolicyModalOpen(true); }} className="text-blue-600 hover:text-blue-800 cursor-pointer"><EditIcon/></button>
+                           <button onClick={() => { deletePolicy(policy.id, policy.name) }} className="text-red-600 hover:text-red-800 cursor-pointer"><DeleteIcon/></button>
+                        </TableCell>
+                      </TableRow>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    {new Date(policy.created_at).toLocaleDateString('tr-TR', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <button
-                      onClick={() => {
-                        setEditPolicy(policy);
-                        setPolicyModalOpen(true);
-                      }}
-                      className="text-blue-600 hover:text-blue-800 cursor-pointer"
-                    >
-                      <EditIcon/>
-                    </button>
-                    <button
-                      onClick={() => {
-                        deletePolicy(policy.id, policy.name)
-                      }}
-                      className="text-red-600 hover:text-red-800 cursor-pointer"
-                    >
-                      <DeleteIcon/>
-                    </button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          ) : (
-            <TableBody emptyContent={"Veri Yok."}>{[]}</TableBody>
-          )}
-          </Table>
+                  </TableBody>
+                </Table>
+            </div>
         </div>
       </section>
-
-    </DefaultLayout>
-  );
-}
+      </DefaultLayout>
+    );
+  }
