@@ -18,6 +18,7 @@ type LdapUser = {
   sn: string;
   mail?: string;
   phone?: string;
+  userPassword?: string; // <-- eklendi: parola bilgisi (varsa)
   uidNumber?: number;
   gidNumber?: number;
   homeDirectory?: string;
@@ -82,64 +83,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 const api = {
   // ---- Tree ----
   async loadTree(): Promise<LdapTree> {
-    // TODO: Replace with your backend call like:
      const res = await fetch(`${API_BASE}/ldap/api/tree/`);
      if (!res.ok) throw new Error('Tree load failed');
      return res.json();
-
-    /* // Fallback sample for preview
-    return {
-      domain: "dc=example,dc=org",
-      organizations: [
-        {
-          dn: "ou=OET,dc=example,dc=org",
-          name: "OET",
-          description: "Operasyon Ekibi",
-          groups: [
-            {
-              dn: "cn=devops,ou=OET,dc=example,dc=org",
-              name: "devops",
-              description: "DevOps grubu",
-              members: ["uid=caner,ou=OET,dc=example,dc=org"],
-            },
-            {
-              dn: "cn=secops,ou=OET,dc=example,dc=org",
-              name: "secops",
-              description: "Security ops",
-              members: [],
-            },
-          ],
-          users: [
-            {
-              dn: "uid=caner,ou=OET,dc=example,dc=org",
-              uid: "caner",
-              givenName: "Caner",
-              sn: "Aysan",
-              mail: "caner@example.org",
-              phone: "+90 555 555 55 55",
-              uidNumber: 10001,
-              gidNumber: 10001,
-              homeDirectory: "/home/caner",
-              isActive: true,
-              groups: ["cn=devops,ou=OET,dc=example,dc=org"],
-            },
-          ],
-        },
-        {
-          dn: "ou=JAVATAR,dc=example,dc=org",
-          name: "JAVATAR",
-          description: "Java Takımı",
-          groups: [
-            {
-              dn: "cn=backend,ou=JAVATAR,dc=example,dc=org",
-              name: "backend",
-              members: [],
-            },
-          ],
-          users: [],
-        },
-      ],
-    };*/
   }, 
 
   async suggestIds(orgDn: string, groupDn?: string): Promise<{uidNumber: number; gidNumber: number}> {
@@ -188,7 +134,11 @@ const api = {
     return res.json() as Promise<{dn: string}>;
   },
   async updateUser(dn: string, payload: Partial<LdapUser>) {
-    await fetch(`${API_BASE}/ldap/api/users/${dn}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+    const res = await fetch(`${API_BASE}/ldap/api/users/${dn}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`updateUser failed: ${res.status} ${t}`);
+    }
     return {dn, ...payload};
   },
   async deleteUser(dn: string) {
@@ -334,6 +284,7 @@ export default function LdapManagementPage() {
   uid: "",
   givenName: "",
   sn: "",
+  userPassword: "", // <-- parola state eklendi
   manualUidGid: false,
   manualHome: false,
 });
@@ -545,6 +496,7 @@ export default function LdapManagementPage() {
       sn: "",
       mail: "",
       phone: "",
+      userPassword: "", // yeni kullanıcıda parola alanı boş (kullanıcı isterse girer)
       uidNumber: undefined,
       gidNumber: undefined,
       homeDirectory: "",
@@ -566,6 +518,7 @@ export default function LdapManagementPage() {
       sn: usr.sn,
       mail: usr.mail,
       phone: usr.phone,
+      userPassword: "", // düzenlemede parola boş bırak (değiştirmek istenirse girilecek)
       uidNumber: usr.uidNumber,
       gidNumber: usr.gidNumber,
       homeDirectory: usr.homeDirectory,
@@ -593,6 +546,11 @@ export default function LdapManagementPage() {
       phone: userForm.phone,
       isActive: userForm.isActive,
     };
+
+    // parola: sadece doluysa ekle (düzenlemede boşsa parola değişmez)
+    if (userForm.userPassword) {
+      payloadUser.userPassword = userForm.userPassword;
+    }
 
     // numaralar
     if (userForm.manualUidGid) {
@@ -630,13 +588,14 @@ export default function LdapManagementPage() {
         // ZORUNLU: groupDn dolu olmalı
         if (!userForm.groupDn) return alert("Grup zorunlu");
 
-        const newUserPayload: LdapUser = {
+        const newUserPayload: any = {
           dn: "", // backend döndürecek
           uid: userForm.uid!,
           givenName: userForm.givenName!,
           sn: userForm.sn!,
           mail: userForm.mail,
           phone: userForm.phone,
+          userPassword: userForm.userPassword || undefined, // <-- userPassword eklendi
           uidNumber: userForm.uidNumber,
           gidNumber: userForm.gidNumber,
           homeDirectory: userForm.homeDirectory || `/home/${userForm.uid}`,
@@ -999,6 +958,15 @@ export default function LdapManagementPage() {
             <Input label="* Soyad (sn)" isRequired value={userForm.sn || ""} onChange={(e) => setUserForm((f) => ({...f, sn: e.target.value}))} />
             <Input label="E-posta" type="email" value={userForm.mail || ""} onChange={(e) => setUserForm((f) => ({...f, mail: e.target.value}))} />
             <Input label="Telefon" value={userForm.phone || ""} onChange={(e) => setUserForm((f) => ({...f, phone: e.target.value}))} />
+
+            {/* --- Parola alanı eklendi (telefon'dan sonra) --- */}
+            <Input
+              label="Parola"
+              type="password"
+              placeholder={userForm.dn ? "Mevcut parolayı değiştirmek için girin" : "Yeni kullanıcı için parola"}
+              value={userForm.userPassword || ""}
+              onChange={(e) => setUserForm((f) => ({ ...f, userPassword: e.target.value }))}
+            />
 
             {/* --- UID/GID başlık + Manuel/Otomatik düğmesi --- */}
             <div className="md:col-span-2 flex items-center justify-between mt-2">
@@ -1468,6 +1436,7 @@ function UserDetails({org, user, onEdit, onMove, onDelete}: {
             <div><span className="text-gray-500">Soyad:</span> {user.sn}</div>
             <div><span className="text-gray-500">E-posta:</span> {user.mail || "-"}</div>
             <div><span className="text-gray-500">Telefon:</span> {user.phone || "-"}</div>
+            <div><span className="text-gray-500">Parola:</span> {user.userPassword ? "*****" : "-"}</div>
             <div><span className="text-gray-500">Durum:</span> <Chip size="sm" color={user.isActive ? "success" : "danger"}>{user.isActive ? "Aktif" : "Pasif"}</Chip></div>
           </div>
         </div>
