@@ -372,6 +372,20 @@ export default function DocsPage() {
       users?.flatMap(user => user.groups.map(group => [group.id, group])) || []
     ).values()
   );
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(cisPolicies.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedPolicies = cisPolicies.slice(startIndex, startIndex + itemsPerPage);
+
+  
+  const [page, setPage] = useState(1);
+  const rowsPerPage = 10;
+  const pages = Math.ceil(otherPolicies.length / rowsPerPage);
+ 
+  const start = (page - 1) * rowsPerPage;
+  const paginatedPoliciess = otherPolicies.slice(start, start + rowsPerPage);
+
 
   return (
     <DefaultLayout>
@@ -566,7 +580,8 @@ export default function DocsPage() {
               + Politika Ekle
             </Button>
           </div>
-          <div className="shadow rounded-2xl border border-gray-200">
+          <div className="shadow rounded-2xl border border-gray-200 mt-4 overflow-hidden">
+            <div className="max-h-[550px] overflow-y-auto">
             <Table aria-label="CIS Politikaları tablosu">
               <TableHeader>
                   <TableColumn>Politika</TableColumn>
@@ -575,93 +590,199 @@ export default function DocsPage() {
                   <TableColumn>Oluşturulma</TableColumn>
                   <TableColumn>Düzenle</TableColumn>
               </TableHeader>
-              <TableBody items={cisPolicies} emptyContent={"CIS Politikası Yok."}>
-                {(policy) => (
-                  <TableRow key={policy.id}>
-                    <TableCell>
+            <TableBody items={paginatedPolicies} emptyContent={"CIS Politikası Yok."}>
+              {(policy) => (
+                <TableRow key={policy.id}>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <p className="text-bold text-sm">{policy.name}</p>
+                      <p className="text-bold text-sm text-default-400">
+                        {policy.policy_type_name}
+                      </p>
+                    </div>
+                  </TableCell>
+
+                  <TableCell>{policy.description}</TableCell>
+                  
+                  <TableCell className="max-w-xs">
+                    {policy.parameters && Object.keys(policy.parameters).length === 0 ? (
+                      <p className="text-default-400">Parametre yok</p>
+                    ) : (
                       <div className="flex flex-col">
-                        <p className="text-bold text-sm">{policy.name}</p>
-                        <p className="text-bold text-sm text-default-400">{policy.policy_type_name}</p>
+                        {Object.entries(policy.parameters).map(([key, value]) => (
+                          <p key={key} className="text-sm truncate" title={`${key}: ${String(value)}`}>
+                            <strong>{key}</strong>: {String(value)}
+                          </p>
+                        ))}
                       </div>
-                    </TableCell>
-                    <TableCell>{policy.description}</TableCell>
-                    <TableCell>
-                      {policy.parameters && Object.keys(policy.parameters).length === 0 ? (
-                        <p className="text-default-400">Parametre yok</p>
-                      ) : (
-                        <div className="flex flex-col">
-                          {Object.entries(policy.parameters).map(([key, value]) => 
-                              <p key={key} className="text-sm"><strong>{key}</strong>: {String(value)}</p>
-                          )}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(policy.created_at).toLocaleDateString('tr-TR', {
-                        year: 'numeric', month: '2-digit', day: '2-digit',
-                      })}
-                    </TableCell>
-                    <TableCell>
-                      <button onClick={() => { setEditPolicy(policy); setPolicyModalOpen(true); }} className="text-blue-600 hover:text-blue-800 cursor-pointer"><EditIcon/></button>
-                      <button onClick={() => { deletePolicy(policy.id, policy.name) }} className="text-red-600 hover:text-red-800 cursor-pointer"><DeleteIcon/></button>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
+                    )}
+                  </TableCell>
+
+                  <TableCell>
+                    {new Date(policy.created_at).toLocaleDateString("tr-TR", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                    })}
+                  </TableCell>
+
+                  <TableCell>
+                    <button
+                      onClick={() => {
+                        setEditPolicy(policy);
+                        setPolicyModalOpen(true);
+                      }}
+                      className="text-blue-600 hover:text-blue-800 cursor-pointer"
+                    >
+                      <EditIcon />
+                    </button>
+                    <button
+                      onClick={() => {
+                        deletePolicy(policy.id, policy.name);
+                      }}
+                      className="text-red-600 hover:text-red-800 cursor-pointer"
+                    >
+                      <DeleteIcon />
+                    </button>
+                  </TableCell>
+
+                </TableRow>
+              )}
+            </TableBody>
+
             </Table>
+
+            <div className="flex justify-center items-center gap-4 py-4">
+            
+            <Button
+              size="sm"
+              className="bg-gray-100 hover:bg-gray-200"
+              disabled={currentPage === 1}
+              onPress={() => setCurrentPage((p) => p - 1)}
+            >
+              ← Önceki
+            </Button>
+
+            <span className="text-sm font-medium">
+              Sayfa {currentPage} / {totalPages}
+            </span>
+
+            <Button
+              size="sm"
+              className="bg-gray-100 hover:bg-gray-200"
+              disabled={currentPage === totalPages}
+              onPress={() => setCurrentPage((p) => p + 1)}
+            >
+              Sonraki →
+            </Button>
+          </div>
           </div>
         </div>
+      </div>
+    <div>
+      <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+        <PolicyIcon className="text-gray-600" />
+        Diğer Politikalar Listesi
+      </h2>
 
-        <div>
-            <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                <PolicyIcon className="text-gray-600"/>
-                Diğer Politikalar Listesi
-            </h2>
-             <div className="shadow rounded-2xl border border-gray-200 mt-4">
-                <Table aria-label="Diğer Politikalar tablosu">
-                  <TableHeader>
-                      <TableColumn >Politika</TableColumn>
-                      <TableColumn >Açıklama</TableColumn>
-                      <TableColumn >Parametreler</TableColumn>
-                      <TableColumn >Oluşturulma</TableColumn>
-                      <TableColumn >Düzenle</TableColumn>
-                  </TableHeader>
-                  <TableBody items={otherPolicies} emptyContent={"Diğer Politikalardan Yok."}>
-                    {(policy) => (
-                      <TableRow key={policy.id}>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <p className="text-bold text-sm">{policy.name}</p>
-                            <p className="text-bold text-sm text-default-400">{policy.policy_type_name}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>{policy.description}</TableCell>
-                        <TableCell>
-                          {policy.parameters && Object.keys(policy.parameters).length === 0 ? (
-                            <p className="text-default-400">Parametre yok</p>
-                          ) : (
-                            <div className="flex flex-col">
-                              {Object.entries(policy.parameters).map(([key, value]) => 
-                                  <p key={key} className="text-sm"><strong>{key}</strong>: {String(value)}</p>
-                              )}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(policy.created_at).toLocaleDateString('tr-TR', {
-                            year: 'numeric', month: '2-digit', day: '2-digit',
-                          })}
-                        </TableCell>
-                        <TableCell>
-                           <button onClick={() => { setEditPolicy(policy); setPolicyModalOpen(true); }} className="text-blue-600 hover:text-blue-800 cursor-pointer"><EditIcon/></button>
-                           <button onClick={() => { deletePolicy(policy.id, policy.name) }} className="text-red-600 hover:text-red-800 cursor-pointer"><DeleteIcon/></button>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-            </div>
-        </div>
+      <div className="shadow rounded-2xl border border-gray-200 mt-4 overflow-hidden">
+        <div className="max-h-[550px] overflow-y-auto">
+        <Table aria-label="Diğer Politikalar tablosu">
+          <TableHeader>
+            <TableColumn>Politika</TableColumn>
+            <TableColumn>Açıklama</TableColumn>
+            <TableColumn>Parametreler</TableColumn>
+            <TableColumn>Oluşturulma</TableColumn>
+            <TableColumn>Düzenle</TableColumn>
+          </TableHeader>
+
+          <TableBody items={paginatedPoliciess} emptyContent={"Diğer Politikalardan Yok."}>
+            {(policy) => (
+              <TableRow key={policy.id}>
+                <TableCell>
+                  <div className="flex flex-col">
+                    <p className="text-bold text-sm">{policy.name}</p>
+                    <p className="text-bold text-sm text-default-400">{policy.policy_type_name}</p>
+                  </div>
+                </TableCell>
+
+                <TableCell>{policy.description}</TableCell>
+
+                <TableCell className="max-w-xs">
+                  {policy.parameters && Object.keys(policy.parameters).length === 0 ? (
+                    <p className="text-default-400">Parametre yok</p>
+                  ) : (
+                    <div className="flex flex-col">
+                      {Object.entries(policy.parameters).map(([key, value]) => (
+                        <p key={key} className="text-sm truncate" title={`${key}: ${String(value)}`}>
+                          <strong>{key}</strong>: {String(value)}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </TableCell>
+
+                <TableCell>
+                  {new Date(policy.created_at).toLocaleDateString("tr-TR", {
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                  })}
+                </TableCell>
+
+                <TableCell className="flex gap-2">
+                  <Button
+                    size="sm"
+                    className="bg-blue-100 text-blue-700 hover:bg-blue-200"
+                    onClick={() => {
+                      setEditPolicy(policy);
+                      setPolicyModalOpen(true);
+                    }}
+                  >
+                    <EditIcon />
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    className="bg-red-100 text-red-700 hover:bg-red-200"
+                    onClick={() => deletePolicy(policy.id, policy.name)}
+                  >
+                    <DeleteIcon />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+
+        {pages > 1 && (
+          <div className="flex justify-center items-center gap-3 p-4">
+            <Button
+              size="sm"
+              className="bg-gray-100 hover:bg-gray-200"
+              disabled={page === 1}
+              onPress={() => setPage(page - 1)}
+            >
+              ← Önceki
+            </Button>
+
+            <span className="text-sm font-medium">
+              Sayfa {page} / {pages}
+            </span>
+
+            <Button
+              size="sm"
+              className="bg-gray-100 hover:bg-gray-200"
+              disabled={page === pages}
+              onPress={() => setPage(page + 1)}
+            >
+              Sonraki →
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+    </div>
       </section>
       </DefaultLayout>
     );
