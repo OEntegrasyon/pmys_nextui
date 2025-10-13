@@ -87,28 +87,28 @@ export default function DocsPage() {
   const fetchUsers = () => {
     fetch(`${API_BASE}/user/users/`)
       .then(res => res.json())
-      .then(setUser)
+      .then(data => setUser(data.results))
       .catch(err => console.error('Error fetching users:', err));
   };
 
   const fetchGroups = () => {
     fetch(`${API_BASE}/user/groups/`)
       .then(res => res.json())
-      .then(setGroup)
+      .then(data => setGroup(data.results))
       .catch(err => console.error('Error fetching groups:', err));
   };
 
   const fetchOrganizations = () => {
     fetch(`${API_BASE}/user/organizations/`)
       .then(res => res.json())
-      .then(setOrganization)
+      .then(data => setOrganization(data.results))
       .catch(err => console.error('Error fetching organizations:', err));
   };
 
   const fetchPolicies = () => {
     fetch(`${API_BASE}/policy/policies/`)
       .then(res => res.json())
-      .then(setPolicy)
+      .then(data => setPolicy(data.results))
       .catch(err => console.error('Error fetching policies'));
   };
 

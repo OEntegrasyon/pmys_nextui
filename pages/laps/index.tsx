@@ -697,6 +697,7 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Select
                 label="Bu istemciye politika ata"
+                items={policies}
                 selectedKeys={new Set([String(clientPolicy[openDetail.uuid] ?? "")])}
                 onSelectionChange={(keys) => {
                   const sel = Array.from(keys as Set<string>)[0];
@@ -704,10 +705,11 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
                   setClientPolicy(prev => ({...prev, [openDetail.uuid]: pid}));
                 }}
               >
-                <SelectItem key="">(Seçili yok)</SelectItem>
-                {policies.map(p => (
-                  <SelectItem key={String(p.id)}>{p.name} — <span className="text-xs text-foreground/60">{p.account_name}</span></SelectItem>
-                ))}
+                {(p) => (
+                  <SelectItem key={String(p.id)} textValue={p.name}>
+                    {p.name} — <span className="text-xs text-foreground/60">{p.account_name}</span>
+                  </SelectItem>
+                )}
               </Select>
 
               <Input

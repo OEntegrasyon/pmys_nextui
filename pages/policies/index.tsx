@@ -87,19 +87,19 @@ export default function DocsPage() {
   const fetchPolicies = () => {
     fetch(`${API_BASE}/policy/policies/`)
       .then(res => res.json())
-      .then(setPolicy)
+      .then(data => setPolicy(data.results))
       .catch(err => console.error('Error fetching policies'));
   };
   const fetchPolicyTypes = () => {
     fetch(`${API_BASE}/policy/policy_types/`)
       .then(res => res.json())
-      .then(setPolicyType)
+      .then(data => setPolicyType(data.results))
       .catch(err => console.error('Error fetching policy types'));
   };
   const fetchUsers = () => {
     fetch(`${API_BASE}/user/users/`)
       .then(res => res.json())
-      .then(setUser)
+      .then(data => setUser(data.results))
       .catch(err => console.error('Error fetching users'));
   }
 

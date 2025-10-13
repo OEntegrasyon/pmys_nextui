@@ -22,7 +22,7 @@ export default function DocsPage() {
   const fetchClients = () => {
     fetch(`${API_BASE}/client/clients/`)
       .then(res => res.json())
-      .then(setClient)
+      .then(data => setClient(data.results))
       .catch(err => console.error('Error fetching clients'));
   };
 
