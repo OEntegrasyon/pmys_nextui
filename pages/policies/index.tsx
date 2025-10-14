@@ -60,6 +60,8 @@ export default function DocsPage() {
   const [selPolicies, setSelPolicies] = useState<number[]>([]);
   const [isPolicyModalOpen, setPolicyModalOpen] = useState(false);
   const [editPolicy, setEditPolicy] = useState<Policy | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearchActive, setIsSearchActive] = useState(false);
 
   const [newPolicy, setNewPolicy] = useState({
     name: '',
@@ -528,37 +530,127 @@ export default function DocsPage() {
                 ))}
             </div>
         </section>
-
+        <Divider className="my-2" />
         <section>
-            <div className="w-full p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-96">
-              <h4 className="flex gap-2 font-medium mb-2"><PolicyIcon className="text-emerald-500"/> Politikalar</h4>
-              <Divider className="my-2" />
-              <div className="mb-4">
-                  <h5 className="font-semibold text-md mb-2">CIS Politikaları</h5>
-                  <Checkbox onValueChange={handleMasterCisChange} isSelected={areAllCisSelected}>
-                      <span className="font-bold">Hepsini Seç / Bırak</span>
-                  </Checkbox>
-                  <div className="pl-4 mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4">
-                      {cisPolicies.map(policy => (
-                          <Checkbox key={policy.id} isSelected={selPolicies.includes(policy.id)} onValueChange={(isSelected: boolean) => setSelPolicies(prev => isSelected ? [...prev, policy.id] : prev.filter(id => id !== policy.id))} className="block mb-1">
-                              {policy.name}
-                          </Checkbox>
-                      ))}
-                  </div>
-              </div>
-              <Divider className="my-2" />
-              <div className="mt-4">
-                  <h5 className="font-semibold text-md mb-2">Diğer Politikalar</h5>
-                  <div className="pl-4 mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4">
-                    {otherPolicies.map(policy => (
-                        <Checkbox key={policy.id} isSelected={selPolicies.includes(policy.id)} onValueChange={(isSelected: boolean) => setSelPolicies(prev => isSelected ? [...prev, policy.id] : prev.filter(id => id !== policy.id))} className="block mb-1">
-                            {policy.name}
-                        </Checkbox>
-                    ))}
-                  </div>
+          <div className="flex flex-col mb-2">
+            <div className="flex justify-between items-center">
+              <h4 className="flex gap-2 font-medium">
+                <PolicyIcon className="text-emerald-500" /> Politikalar
+              </h4>
+
+              {/* 🔍 Arama Alanı */}
+              <div
+                className={`relative flex items-center transition-all duration-300 ${
+                  isSearchActive ? "w-40 md:w-56" : "w-8"
+                }`}
+              >
+                {/* 🔍 İkon */}
+                <button
+                  onClick={() => setIsSearchActive(true)}
+                  className="absolute left-1.5 text-gray-500 hover:text-emerald-500"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z"
+                    />
+                  </svg>
+                </button>
+
+                {/* 🧠 Input */}
+                {isSearchActive && (
+                  <input
+                    type="text"
+                    placeholder="Ara..."
+                    autoFocus
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+                    onBlur={() => {
+                      if (!searchTerm) setIsSearchActive(false);
+                    }}
+                    className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                )}
               </div>
             </div>
+
+            {/* 🔢 Seçili Sayısı (badge olarak, sadece 0'dan büyükse görünür) */}
+            {selPolicies.length > 0 && (
+              <div className="flex justify-end mt-2 pr-1">
+                <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium shadow-sm">
+                  Seçili: {selPolicies.length} politika
+                </span>
+              </div>
+            )}
+          </div>
+
+
+            
+          <div className="w-full p-3 shadow rounded-lg border border-gray-200 overflow-y-auto max-h-96">
+
+            <div className="mb-4">
+              <h5 className="font-semibold text-md mb-2">CIS Politikaları</h5>
+              <Checkbox onValueChange={handleMasterCisChange} isSelected={areAllCisSelected}>
+                <span className="font-bold">Hepsini Seç / Bırak</span>
+              </Checkbox>
+
+              {/* 🔎 Filtrelenmiş CIS Politikaları */}
+              <div className="pl-4 mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4">
+                {cisPolicies
+                  .filter(policy => policy.name.toLowerCase().includes(searchTerm))
+                  .map(policy => (
+                    <Checkbox
+                      key={policy.id}
+                      isSelected={selPolicies.includes(policy.id)}
+                      onValueChange={(isSelected: boolean) =>
+                        setSelPolicies(prev =>
+                          isSelected ? [...prev, policy.id] : prev.filter(id => id !== policy.id)
+                        )
+                      }
+                      className="block mb-1"
+                    >
+                      {policy.name}
+                    </Checkbox>
+                  ))}
+              </div>
+            </div>
+
+            <Divider className="my-2" />
+
+            <div className="mt-4">
+              <h5 className="font-semibold text-md mb-2">Diğer Politikalar</h5>
+              <div className="pl-4 mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4">
+                {otherPolicies
+                  .filter(policy => policy.name.toLowerCase().includes(searchTerm))
+                  .map(policy => (
+                    <Checkbox
+                      key={policy.id}
+                      isSelected={selPolicies.includes(policy.id)}
+                      onValueChange={(isSelected: boolean) =>
+                        setSelPolicies(prev =>
+                          isSelected ? [...prev, policy.id] : prev.filter(id => id !== policy.id)
+                        )
+                      }
+                      className="block mb-1"
+                    >
+                      {policy.name}
+                    </Checkbox>
+                  ))}
+              </div>
+            </div>
+
+            
+          </div>
         </section>
+
       </div>
 
       <div className="justify-end flex md:flex-row gap-4 mt-4">
