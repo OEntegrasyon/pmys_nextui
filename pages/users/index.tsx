@@ -1,5 +1,5 @@
 import DefaultLayout from "@/layouts/default";
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { ChangeEvent } from 'react';
 
 import { Select, SelectItem} from "@heroui/select";
@@ -57,6 +57,7 @@ export default function DocsPage() {
   const [users, setUser] = useState<User[] | null>(null);
   const [groups, setGroup] = useState<Group[] | null>(null);
   const [organizations, setOrganization] = useState<Organization[] | null>(null);
+  const [search, setSearch] = useState("");
   const [policies, setPolicy] = useState<Policy[] | null>(null);
   const [isUserModalOpen, setUserModalOpen] = useState(false);
   const [isGroupModalOpen, setGroupModalOpen] = useState(false);
@@ -118,6 +119,46 @@ export default function DocsPage() {
     fetchOrganizations();
     fetchPolicies();
   }, []);
+
+  const filteredUsers = useMemo(() => {
+    if (!users) return null;
+    const q = search.trim().toLowerCase();
+    if (!q) return users;
+    return users.filter(u => {
+      // user alanlarında ara
+      if (u.username.toLowerCase().includes(q)) return true;
+      if (u.email.toLowerCase().includes(q)) return true;
+      if ((u.first_name || '').toLowerCase().includes(q)) return true;
+      if ((u.last_name || '').toLowerCase().includes(q)) return true;
+      // gruplarda grup adı veya organizasyon adı ile eşleşme
+      if (u.groups.some(g => (g.name || '').toLowerCase().includes(q))) return true;
+      if (u.groups.some(g => (g.organization_name || '').toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [users, search]);
+
+  const filteredGroups = useMemo(() => {
+    if (!groups) return null;
+    const q = search.trim().toLowerCase();
+    if (!q) return groups;
+    return groups.filter(g => {
+      if (g.name.toLowerCase().includes(q)) return true;
+      if ((g.description || '').toLowerCase().includes(q)) return true;
+      if ((g.organization_name || '').toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [groups, search]);
+
+  const filteredOrganizations = useMemo(() => {
+    if (!organizations) return null;
+    const q = search.trim().toLowerCase();
+    if (!q) return organizations;
+    return organizations.filter(org => {
+      if (org.name.toLowerCase().includes(q)) return true;
+      if ((org.description || '').toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [organizations, search]);
 
   const handleChangeUserStatus = (id: number, isActive: boolean) => async () => {
     const newStatus = !isActive;
@@ -633,6 +674,12 @@ export default function DocsPage() {
               <UserIcon className="text-blue-600"/>
               Kullanıcılar
             </h1>
+            <Input
+              placeholder="Ara (org / grup / kullanıcı)"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-72"
+            />
             <Button 
               color="primary"
               onPress={() => setUserModalOpen(true)}
@@ -653,7 +700,7 @@ export default function DocsPage() {
             </TableHeader>
           {users && users.length > 0 ? (
             <TableBody>
-              {users.map((user) => (
+              {(filteredUsers ?? []).map((user) => (
                 <TableRow key={user.id}>
                   <TableCell
                   onClick={() => {
@@ -740,7 +787,7 @@ export default function DocsPage() {
             </TableHeader>
           {groups && groups.length > 0 ? (
             <TableBody>
-              {groups.map((group) => (
+              {(filteredGroups ?? []).map((group) => (
                 <TableRow key={group.id}>
                   <TableCell>{group.name}</TableCell>
                   <TableCell>{group.description}</TableCell>
@@ -799,7 +846,7 @@ export default function DocsPage() {
             </TableHeader>
           {organizations && organizations.length > 0 ? (
             <TableBody>
-              {organizations.map((organization) => (
+              {(filteredOrganizations ?? []).map((organization) => (
                 <TableRow key={organization.id}>
                   <TableCell>{organization.name}</TableCell>
                   <TableCell>{organization.description}</TableCell>

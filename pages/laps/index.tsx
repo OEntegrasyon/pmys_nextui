@@ -108,7 +108,7 @@ const api = {
     return r.json();
   },
   async listPolicies(): Promise<Policy[]> {
-    const r = await fetch(`${API_BASE}/laps/api/policies/`);
+    const r = await fetch(`${API_BASE}/laps/api/policies/?paginate=false`);
     if (!r.ok) return [];
     return r.json();
   },
