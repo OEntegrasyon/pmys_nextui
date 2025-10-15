@@ -62,6 +62,8 @@ export default function DocsPage() {
   const [editPolicy, setEditPolicy] = useState<Policy | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSearchActive, setIsSearchActive] = useState(false);
+  const [tableSearchTerm, setTableSearchTerm] = useState("");
+  const [isTableSearchActive, setIsTableSearchActive] = useState(false);
 
   const [newPolicy, setNewPolicy] = useState({
     name: '',
@@ -374,19 +376,28 @@ export default function DocsPage() {
       users?.flatMap(user => user.groups.map(group => [group.id, group])) || []
     ).values()
   );
+  const filteredCisPolicies = cisPolicies.filter(p =>
+    p.name.toLowerCase().includes(tableSearchTerm)
+  );
+
+  const filteredOtherPolicies = otherPolicies.filter(p =>
+    p.name.toLowerCase().includes(tableSearchTerm)
+  );
+
+
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const totalPages = Math.ceil(cisPolicies.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredCisPolicies.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedPolicies = cisPolicies.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedPolicies = filteredCisPolicies.slice(startIndex, startIndex + itemsPerPage);
 
   
   const [page, setPage] = useState(1);
   const rowsPerPage = 10;
-  const pages = Math.ceil(otherPolicies.length / rowsPerPage);
+  const pages = Math.ceil(filteredOtherPolicies.length / rowsPerPage);
  
   const start = (page - 1) * rowsPerPage;
-  const paginatedPoliciess = otherPolicies.slice(start, start + rowsPerPage);
+  const paginatedPoliciess = filteredOtherPolicies.slice(start, start + rowsPerPage);
 
 
   return (
@@ -534,24 +545,22 @@ export default function DocsPage() {
         <section>
           <div className="flex flex-col mb-2">
             <div className="flex justify-between items-center">
-              <h4 className="flex gap-2 font-medium">
+              <h4 className="flex gap-2 font-bold text-lg mb-2">
                 <PolicyIcon className="text-emerald-500" /> Politikalar
               </h4>
 
-              {/* 🔍 Arama Alanı */}
               <div
                 className={`relative flex items-center transition-all duration-300 ${
                   isSearchActive ? "w-40 md:w-56" : "w-8"
                 }`}
               >
-                {/* 🔍 İkon */}
                 <button
                   onClick={() => setIsSearchActive(true)}
-                  className="absolute left-1.5 text-gray-500 hover:text-emerald-500"
+                  className="absolute left-1.5 p-1.5 rounded-full text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-all duration-200"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4"
+                    className="w-5 h-5"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -565,7 +574,6 @@ export default function DocsPage() {
                   </svg>
                 </button>
 
-                {/* 🧠 Input */}
                 {isSearchActive && (
                   <input
                     type="text"
@@ -582,7 +590,6 @@ export default function DocsPage() {
               </div>
             </div>
 
-            {/* 🔢 Seçili Sayısı (badge olarak, sadece 0'dan büyükse görünür) */}
             {selPolicies.length > 0 && (
               <div className="flex justify-end mt-2 pr-1">
                 <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium shadow-sm">
@@ -668,9 +675,51 @@ export default function DocsPage() {
                 <PolicyIcon className="text-blue-600"/>
                 CIS Politikaları Listesi
             </h2>
+            <div className="flex items-center gap-3">
+              <div
+                className={`relative flex items-center transition-all duration-300 ${
+                  isTableSearchActive ? "w-40 md:w-56" : "w-8"
+                }`}
+              >
+              <button
+                onClick={() => setIsTableSearchActive(true)}
+                className="absolute left-1.5 p-1.5 rounded-full text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-all duration-200"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-4.35-4.35M10 18a8 8 0 100-16 8 8 0 000 16z"
+                  />
+                </svg>
+              </button>
+
+              {isTableSearchActive && (
+              <input
+                type="text"
+                placeholder="Ara..."
+                autoFocus
+                value={tableSearchTerm}
+                onChange={(e) => setTableSearchTerm(e.target.value.toLowerCase())}
+                onBlur={() => {
+                  if (!tableSearchTerm) setIsTableSearchActive(false);
+                }}
+                className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              />
+            )}
+            </div>
+          
             <Button color="primary" onPress={() => { setEditPolicy(null); setPolicyModalOpen(true)}}>
               + Politika Ekle
             </Button>
+          </div>
           </div>
           <div className="shadow rounded-2xl border border-gray-200 mt-4 overflow-hidden">
             <div className="max-h-[550px] overflow-y-auto">
