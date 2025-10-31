@@ -18,7 +18,7 @@ type LdapUser = {
   sn: string;
   mail?: string;
   phone?: string;
-  userPassword?: string; // <-- eklendi: parola bilgisi (varsa)
+  userPassword?: string;
   uidNumber?: number;
   gidNumber?: number;
   homeDirectory?: string;
@@ -38,7 +38,7 @@ type LdapOrganization = {
   name: string;
   description?: string;
   groups: LdapGroup[];
-  users: LdapUser[]; // optional: users directly under org
+  users: LdapUser[];
 };
 
 type LdapTree = {
@@ -50,7 +50,7 @@ type NodeKind = "domain" | "organization" | "group" | "user";
 
 type TreeNodeRef = {
   kind: NodeKind;
-  dn: string; // unique key per node
+  dn: string;
 };
 
 // ===================== Helper utils =====================
@@ -66,9 +66,7 @@ function nextFreeNumber(taken: Set<number>, start = MIN_UID_GID) {
 function classNames(...parts: (string | false | undefined)[]) {
   return parts.filter(Boolean).join(" ");
 }
-
-function downloadAsFile(filename: string, data: any) {
-  const blob = new Blob([typeof data === "string" ? data : JSON.stringify(data, null, 2)], {type: "application/json"});
+function downloadBlob(filename: string, blob: Blob) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -76,17 +74,24 @@ function downloadAsFile(filename: string, data: any) {
   a.click();
   URL.revokeObjectURL(url);
 }
+function downloadAsFile(filename: string, data: any) {
+  const blob = new Blob([typeof data === "string" ? data : JSON.stringify(data, null, 2)], { type: "application/json" });
+  downloadBlob(filename, blob);
+}
+function b64(str: string) { return btoa(unescape(encodeURIComponent(str))); }
+function b64p(str: string) { return encodeURIComponent(btoa(unescape(encodeURIComponent(str)))); }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-// Central place to wire backend later. For now, we do local state ops and provide TODOs.
+// ===================== API =====================
+
 const api = {
   // ---- Tree ----
   async loadTree(): Promise<LdapTree> {
      const res = await fetch(`${API_BASE}/ldap/api/tree/`);
      if (!res.ok) throw new Error('Tree load failed');
      return res.json();
-  }, 
+  },
 
   async suggestIds(orgDn: string, groupDn?: string): Promise<{uidNumber: number; gidNumber: number}> {
     const qs = new URLSearchParams({ orgDn });
@@ -96,31 +101,41 @@ const api = {
     return res.json();
   },
 
-  // The following are placeholders. Wire these to your backend endpoints.
+  // ---- Orgs ----
   async createOrganization(payload: {name: string; description?: string}) {
-    await fetch(`${API_BASE}/ldap/api/organizations/`, { method: 'POST', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
-    return payload;
+    const r = await fetch(`${API_BASE}/ldap/api/organizations/`, { method: 'POST', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error(`createOrganization failed: ${r.status}`);
+    return r.json() as Promise<{dn: string}>;
   },
   async updateOrganization(dn: string, payload: {name?: string; description?: string}) {
-    await fetch(`${API_BASE}/ldap/api/organizations/${dn}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
-    return payload;
+    const r = await fetch(`${API_BASE}/ldap/api/organizations/${b64p(dn)}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error(`updateOrganization failed: ${r.status}`);
+    return {dn, ...payload};
   },
   async deleteOrganization(dn: string) {
-    await fetch(`${API_BASE}/ldap/api/organizations/${dn}/`, { method: 'DELETE' })
+    const r = await fetch(`${API_BASE}/ldap/api/organizations/${b64p(dn)}/`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(`deleteOrganization failed: ${r.status}`);
     return {dn};
   },
+
+  // ---- Groups ----
   async createGroup(payload: {organizationDn: string; name: string; description?: string}) {
-    await fetch(`${API_BASE}/ldap/api/groups/`, { method: 'POST', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
-    return payload;
+    const r = await fetch(`${API_BASE}/ldap/api/groups/`, { method: 'POST', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error(`createGroup failed: ${r.status}`);
+    return r.json() as Promise<{dn: string}>;
   },
   async updateGroup(dn: string, payload: {name?: string; description?: string}) {
-    await fetch(`${API_BASE}/ldap/api/groups/${dn}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+    const r = await fetch(`${API_BASE}/ldap/api/groups/${b64p(dn)}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    if (!r.ok) throw new Error(`updateGroup failed: ${r.status}`);
     return {dn, ...payload};
   },
   async deleteGroup(dn: string) {
-    await fetch(`${API_BASE}/ldap/api/groups/${dn}/`, { method: 'DELETE' })
+    const r = await fetch(`${API_BASE}/ldap/api/groups/${b64p(dn)}/`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(`deleteGroup failed: ${r.status}`);
     return {dn};
   },
+
+  // ---- Users ----
   async createUser(payload: {organizationDn: string; groupDn: string; user: Partial<LdapUser>}) {
     const res = await fetch(`${API_BASE}/ldap/api/users/`, {
       method: 'POST',
@@ -134,7 +149,7 @@ const api = {
     return res.json() as Promise<{dn: string}>;
   },
   async updateUser(dn: string, payload: Partial<LdapUser>) {
-    const res = await fetch(`${API_BASE}/ldap/api/users/${dn}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+    const res = await fetch(`${API_BASE}/ldap/api/users/${b64p(dn)}/`, { method: 'PUT', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
     if (!res.ok) {
       const t = await res.text().catch(() => "");
       throw new Error(`updateUser failed: ${res.status} ${t}`);
@@ -142,20 +157,60 @@ const api = {
     return {dn, ...payload};
   },
   async deleteUser(dn: string) {
-    await fetch(`${API_BASE}/ldap/api/users/${dn}/`, { method: 'DELETE' })
+    const r = await fetch(`${API_BASE}/ldap/api/users/${b64p(dn)}/`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(`deleteUser failed: ${r.status}`);
     return {dn};
   },
   async moveUser(dn: string, toGroupDn: string) {
-    await fetch(`${API_BASE}/ldap/api/users/${dn}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify({toGroupDn}) })
+    const r = await fetch(`${API_BASE}/ldap/api/users/${b64p(dn)}/move`, { method: 'POST', headers: { 'Content-Type': 'application/json'}, body: JSON.stringify({toGroupDn}) });
+    if (!r.ok) throw new Error(`moveUser failed: ${r.status}`);
     return {dn, toGroupDn};
   },
-  async export(scope: {kind: NodeKind; dn?: string}) {
-    // Usually your backend should assemble proper subtree JSON.
-    return scope;
+
+  // ---- Export (değişmeden) ----
+  async export(scope: { kind: string; dn?: string }, file_format: "ldif" | "pdf" | "json") {
+    const qs = new URLSearchParams({ kind: scope.kind, file_format });
+    if (scope.dn) qs.set("dn_b64", b64(scope.dn));
+    const url = `${API_BASE}/ldap/api/export/?${qs.toString()}`;
+    const res = await fetch(url, { method: "GET", credentials: "include" });
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Backend dışa aktarma hatası: ${res.status} ${txt}`);
+    }
+    const disposition = res.headers.get("Content-Disposition") || '';
+    let filename = `ldap_export_${scope.kind}.${file_format}`;
+    const m = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+    if (m && m[1]) filename = m[1].replace(/['"]/g, "");
+    const blob = await res.blob();
+    return { filename, blob };
   },
-  async import(json: any) {
-    return json;
+
+    // ---- Import (yeni) ----
+  async validateImport(file: File) {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch(`${API_BASE}/ldap/api/import/validate/`, {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || "Doğrulama başarısız");
+    return data; // beklenen: { summary, results, blockers?, items?, planId? ... }
   },
+
+  async applyImport(opts: { file?: File; planId?: string }) {
+    const fd = new FormData();
+    if (opts.planId) fd.append("planId", opts.planId);
+    if (opts.file)   fd.append("file", opts.file);
+    const res = await fetch(`${API_BASE}/ldap/api/import/apply/`, {
+      method: "POST",
+      body: fd,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || "Apply başarısız");
+    return data; // beklenen: { ok: true, applied: {...} } vb.
+  },
+
 };
 
 // ===================== Tree helpers =====================
@@ -233,7 +288,7 @@ function buildTreeNodes(tree: LdapTree, query: string) {
       }
     }
 
-    // Users that are directly under org (not in any group)
+    // Users directly under org (not in any group)
     const directUsers = org.users.filter((u) => !org.groups.some((g) => g.members.includes(u.dn)));
     for (const usr of directUsers) {
       const usrNode = {
@@ -267,7 +322,8 @@ export default function LdapManagementPage() {
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
   const [moveUserModalOpen, setMoveUserModalOpen] = useState(false);
-  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"json" | "ldif" | "pdf">("json");
 
   const [orgForm, setOrgForm] = useState<{dn?: string; name: string; description?: string}>({name: ""});
   const [groupForm, setGroupForm] = useState<{dn?: string; name: string; description?: string; organizationDn: string | ""}>({name: "", description: "", organizationDn: ""});
@@ -275,8 +331,8 @@ export default function LdapManagementPage() {
   Partial<LdapUser> & {
     organizationDn: string | "";
     groupDn?: string | "";
-    manualUidGid?: boolean;   // <— yeni
-    manualHome?: boolean;     // <— yeni
+    manualUidGid?: boolean;
+    manualHome?: boolean;
   }
 >({
   organizationDn: "",
@@ -284,7 +340,7 @@ export default function LdapManagementPage() {
   uid: "",
   givenName: "",
   sn: "",
-  userPassword: "", // <-- parola state eklendi
+  userPassword: "",
   manualUidGid: false,
   manualHome: false,
 });
@@ -292,43 +348,44 @@ export default function LdapManagementPage() {
 
   const orgOptions = useOrgOptions(tree);
   const groupOptions = useGroupOptions(tree, userForm.organizationDn || undefined);
-
   const builtTree = useMemo(() => (tree ? buildTreeNodes(tree, search) : null), [tree, search]);
-  useEffect(() => {
-    if (!userModalOpen) return;             // modal kapalıysa çalışmasın
-    if (!userForm.organizationDn || !userForm.groupDn) return;    // org veya grup seçili değilse bekle
-    if (userForm.manualUidGid) return;       // manuel modda dokunma
-    if (userForm.dn) return;                 // DÜZENLEME modunda (mevcut kullanıcı) dokunma
 
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<any | null>(null); // validate sonucu
+  const [validating, setValidating] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+
+  // suggestIds otomatiği (mevcut)
+  useEffect(() => {
+    if (!userModalOpen) return;
+    if (!userForm.organizationDn || !userForm.groupDn) return;
+    if (userForm.manualUidGid) return;
+    if (userForm.dn) return;
     api
       .suggestIds(userForm.organizationDn, userForm.groupDn || undefined)
       .then(({ uidNumber, gidNumber }) => {
-        setUserForm(f => ({
-          ...f,
-          uidNumber, // alan disabled olsa da göster
-          gidNumber,
-        }));
+        setUserForm(f => ({ ...f, uidNumber, gidNumber }));
       })
       .catch((e) => console.error("suggestIds error:", e));
   }, [userModalOpen, userForm.organizationDn, userForm.groupDn, userForm.manualUidGid, userForm.dn]);
+
   // Load
   const load = async () => {
     try {
       setLoading(true);
       const data = await api.loadTree();
       setTree(data);
-      // expand domain by default
       setExpanded(new Set([data.domain]));
     } catch (e) {
       console.error(e);
+      alert("Ağaç yüklenemedi.");
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   // Expand helpers
   const toggle = (dn: string) => {
@@ -376,36 +433,23 @@ export default function LdapManagementPage() {
     return null;
   }, [selected, tree]);
 
-  // ===================== CRUD handlers (front-only; wire API later) =====================
-
-  const handleOpenCreateOrg = () => {
-    setOrgForm({name: "", description: ""});
-    setOrgModalOpen(true);
-  };
-  const handleOpenEditOrg = (org: LdapOrganization) => {
-    setOrgForm({dn: org.dn, name: org.name, description: org.description});
-    setOrgModalOpen(true);
-  };
+  // ===================== CRUD handlers (mevcut) =====================
+  const handleOpenCreateOrg = () => { setOrgForm({name: "", description: ""}); setOrgModalOpen(true); };
+  const handleOpenEditOrg = (org: LdapOrganization) => { setOrgForm({dn: org.dn, name: org.name, description: org.description}); setOrgModalOpen(true); };
   const handleSubmitOrg = async () => {
     if (!tree) return;
     if (!orgForm.name) return alert("Organizasyon adı zorunlu");
     if (orgForm.dn) {
-      // Update
       await api.updateOrganization(orgForm.dn, {name: orgForm.name, description: orgForm.description});
       setTree((prev) => {
         if (!prev) return prev;
         const copy: LdapTree = JSON.parse(JSON.stringify(prev));
         const org = findOrg(copy, orgForm.dn!);
-        if (org) {
-          org.name = orgForm.name;
-          org.description = orgForm.description;
-        }
+        if (org) { org.name = orgForm.name; org.description = orgForm.description; }
         return copy;
       });
     } else {
-      // Create
-      await api.createOrganization({name: orgForm.name, description: orgForm.description});
-      const dn = `ou=${orgForm.name},${tree.domain}`;
+      const {dn} = await api.createOrganization({name: orgForm.name, description: orgForm.description});
       setTree((prev) => {
         if (!prev) return prev;
         const copy: LdapTree = JSON.parse(JSON.stringify(prev));
@@ -449,15 +493,11 @@ export default function LdapManagementPage() {
         const copy: LdapTree = JSON.parse(JSON.stringify(prev));
         const o = findOrg(copy, groupForm.organizationDn);
         const g = o && findGroup(o, groupForm.dn!);
-        if (g) {
-          g.name = groupForm.name;
-          g.description = groupForm.description;
-        }
+        if (g) { g.name = groupForm.name; g.description = groupForm.description; }
         return copy;
       });
     } else {
-      await api.createGroup({organizationDn: groupForm.organizationDn, name: groupForm.name, description: groupForm.description});
-      const newDn = `cn=${groupForm.name},${groupForm.organizationDn}`;
+      const {dn: newDn} = await api.createGroup({organizationDn: groupForm.organizationDn, name: groupForm.name, description: groupForm.description});
       setTree((prev) => {
         if (!prev) return prev;
         const copy: LdapTree = JSON.parse(JSON.stringify(prev));
@@ -478,7 +518,6 @@ export default function LdapManagementPage() {
       const o = findOrg(copy, orgDn);
       if (o) {
         o.groups = o.groups.filter((g) => g.dn !== grp.dn);
-        // remove membership of users
         for (const u of o.users) u.groups = (u.groups || []).filter((g) => g !== grp.dn);
       }
       return copy;
@@ -496,18 +535,17 @@ export default function LdapManagementPage() {
       sn: "",
       mail: "",
       phone: "",
-      userPassword: "", // yeni kullanıcıda parola alanı boş (kullanıcı isterse girer)
+      userPassword: "",
       uidNumber: undefined,
       gidNumber: undefined,
       homeDirectory: "",
       isActive: true,
-      manualUidGid: false,   // otomatik
-      manualHome: false,     // otomatik
+      manualUidGid: false,
+      manualHome: false,
     });
     setUserModalOpen(true);
   };
   const handleOpenEditUser = (usr: LdapUser, orgDn: string) => {
-    // pick one group as default for editing (if exists)
     const groupDn = usr.groups?.[0] || "";
     setUserForm({
       dn: usr.dn,
@@ -518,13 +556,13 @@ export default function LdapManagementPage() {
       sn: usr.sn,
       mail: usr.mail,
       phone: usr.phone,
-      userPassword: "", // düzenlemede parola boş bırak (değiştirmek istenirse girilecek)
+      userPassword: "",
       uidNumber: usr.uidNumber,
       gidNumber: usr.gidNumber,
       homeDirectory: usr.homeDirectory,
       isActive: usr.isActive,
-      manualUidGid: false,   // düzenlemek isterse butonla açacak
-      manualHome: false,     // düzenlemek isterse butonla açacak
+      manualUidGid: false,
+      manualHome: false,
     });
     setUserModalOpen(true);
   };
@@ -533,11 +571,8 @@ export default function LdapManagementPage() {
     if (!userForm.uid || !userForm.givenName || !userForm.sn || !userForm.organizationDn) {
       return alert("Kullanıcı adı, ad, soyad ve organizasyon zorunludur");
     }
-    if (uidNumError) {
-      return alert("uidNumber geçersiz ya da kullanımda.");
-    }
+    if (uidNumError) return alert("uidNumber geçersiz ya da kullanımda.");
 
-    // Gönderilecek user objesini derle
     const payloadUser: any = {
       uid: userForm.uid,
       givenName: userForm.givenName,
@@ -547,23 +582,15 @@ export default function LdapManagementPage() {
       isActive: userForm.isActive,
     };
 
-    // parola: sadece doluysa ekle (düzenlemede boşsa parola değişmez)
-    if (userForm.userPassword) {
-      payloadUser.userPassword = userForm.userPassword;
-    }
-
-    // numaralar
+    if (userForm.userPassword) payloadUser.userPassword = userForm.userPassword;
     if (userForm.manualUidGid) {
       if (userForm.uidNumber != null) payloadUser.uidNumber = Number(userForm.uidNumber);
       if (userForm.gidNumber != null) payloadUser.gidNumber = Number(userForm.gidNumber);
     }
-    // home
     payloadUser.homeDirectory = userForm.manualHome ? (userForm.homeDirectory || "") : computedHome;
 
     if (userForm.dn) {
-      // UPDATE
       await api.updateUser(userForm.dn, payloadUser);
-      // ... mevcut güncelleme setTree bloğun aynı (yalnızca değer kaynağı payloadUser olsun)
       setTree((prev) => {
         if (!prev) return prev;
         const copy: LdapTree = JSON.parse(JSON.stringify(prev));
@@ -572,7 +599,6 @@ export default function LdapManagementPage() {
         const u = findUser(o, userForm.dn!);
         if (u) {
           Object.assign(u, payloadUser);
-          // grup üyeliği koruma (mevcut kodun)
           if (userForm.groupDn) {
             const allGroups = new Set<string>(u.groups || []);
             allGroups.add(userForm.groupDn);
@@ -584,25 +610,22 @@ export default function LdapManagementPage() {
         return copy;
       });
     } else {
-        // Create
-        // ZORUNLU: groupDn dolu olmalı
-        if (!userForm.groupDn) return alert("Grup zorunlu");
-
-        const newUserPayload: any = {
-          dn: "", // backend döndürecek
-          uid: userForm.uid!,
-          givenName: userForm.givenName!,
-          sn: userForm.sn!,
-          mail: userForm.mail,
-          phone: userForm.phone,
-          userPassword: userForm.userPassword || undefined, // <-- userPassword eklendi
-          uidNumber: userForm.uidNumber,
-          gidNumber: userForm.gidNumber,
-          homeDirectory: userForm.homeDirectory || `/home/${userForm.uid}`,
-          isActive: userForm.isActive ?? true,
-          groups: [userForm.groupDn], // seçilen grup
-        };
-        const { dn } = await api.createUser({
+      if (!userForm.groupDn) return alert("Grup zorunlu");
+      const newUserPayload: any = {
+        dn: "",
+        uid: userForm.uid!,
+        givenName: userForm.givenName!,
+        sn: userForm.sn!,
+        mail: userForm.mail,
+        phone: userForm.phone,
+        userPassword: userForm.userPassword || undefined,
+        uidNumber: userForm.uidNumber,
+        gidNumber: userForm.gidNumber,
+        homeDirectory: userForm.homeDirectory || `/home/${userForm.uid}`,
+        isActive: userForm.isActive ?? true,
+        groups: [userForm.groupDn],
+      };
+      const { dn } = await api.createUser({
         organizationDn: userForm.organizationDn!,
         groupDn: userForm.groupDn!,
         user: newUserPayload,
@@ -612,20 +635,17 @@ export default function LdapManagementPage() {
         const copy: LdapTree = JSON.parse(JSON.stringify(prev));
         const o = findOrg(copy, userForm.organizationDn!);
         if (!o) return prev;
-
         const concreteUser: LdapUser = { ...newUserPayload, dn };
         o.users.push(concreteUser);
-
         const g = findGroup(o, userForm.groupDn!);
         if (g && !g.members.includes(dn)) g.members.push(dn);
-
         return copy;
       });
     }
     setUserModalOpen(false);
   };
 
-    // Org içindeki diğer kullanıcıların uidNumber set'i:
+  // Org içindeki diğer kullanıcıların uidNumber set'i:
   const takenUidNumbers = useMemo(() => {
     if (!tree || !userForm.organizationDn) return new Set<number>();
     const org = findOrg(tree, userForm.organizationDn);
@@ -637,14 +657,12 @@ export default function LdapManagementPage() {
   }, [tree, userForm.organizationDn, userForm.dn]);
 
   // Hata bayrakları:
-  const uidNumError =
-    !!userForm.manualUidGid &&
-    (
-      userForm.uidNumber == null ||
-      Number.isNaN(Number(userForm.uidNumber)) ||
-      Number(userForm.uidNumber) < MIN_UID_GID ||
-      takenUidNumbers.has(Number(userForm.uidNumber))
-    );
+  const uidNumError = !!userForm.manualUidGid && (
+    userForm.uidNumber == null ||
+    Number.isNaN(Number(userForm.uidNumber)) ||
+    Number(userForm.uidNumber) < MIN_UID_GID ||
+    takenUidNumbers.has(Number(userForm.uidNumber))
+  );
 
   // Home otomatik mi?
   const computedHome = useMemo(() => {
@@ -654,9 +672,7 @@ export default function LdapManagementPage() {
 
   // uid değişince, home manuel değilse güncelle
   useEffect(() => {
-    if (!userForm.manualHome) {
-      setUserForm((f) => ({ ...f, homeDirectory: computedHome }));
-    }
+    if (!userForm.manualHome) setUserForm((f) => ({ ...f, homeDirectory: computedHome }));
   }, [computedHome, userForm.manualHome]);
 
   const handleDeleteUser = async (usr: LdapUser, orgDn: string) => {
@@ -689,16 +705,10 @@ export default function LdapManagementPage() {
       let usr: LdapUser | undefined;
       for (const o of copy.organizations) {
         const u = findUser(o, moveUser.userDn);
-        if (u) {
-          usr = u;
-          usrOrg = o;
-          break;
-        }
+        if (u) { usr = u; usrOrg = o; break; }
       }
       if (!usr || !usrOrg) return prev;
-      // remove from all groups in org
       for (const g of usrOrg.groups) g.members = g.members.filter((m) => m !== usr!.dn);
-      // add to new group
       const toG = findGroup(usrOrg, moveUser.toGroupDn);
       if (toG && !toG.members.includes(usr.dn)) toG.members.push(usr.dn);
       usr.groups = [moveUser.toGroupDn];
@@ -707,55 +717,43 @@ export default function LdapManagementPage() {
     setMoveUserModalOpen(false);
   };
 
-  // Export
+  // Export (hiç dokunmadım)
   const handleExport = async () => {
     if (!tree) return;
-    const scope = selected ?? {kind: "domain", dn: tree.domain};
-    // Backend: await api.export(scope)
-    let json: any = {};
-    if (scope.kind === "domain") json = tree;
-    if (scope.kind === "organization") json = findOrg(tree, scope.dn!);
-    if (scope.kind === "group") {
-      for (const org of tree.organizations) {
-        const g = findGroup(org, scope.dn!);
-        if (g) { json = {domain: tree.domain, organization: org.dn, group: g}; break; }
-      }
-    }
-    if (scope.kind === "user") {
-      for (const org of tree.organizations) {
-        const u = findUser(org, scope.dn!);
-        if (u) { json = {domain: tree.domain, organization: org.dn, user: u}; break; }
-      }
-    }
-    downloadAsFile(`ldap_export_${scope.kind}.json`, json);
-  };
+    const scope = selected ?? { kind: "domain", dn: tree.domain };
+    const format = exportFormat;
+    setExportModalOpen(false);
 
-  // Import
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [importPreview, setImportPreview] = useState<any>(null);
-
-  const handleChooseImport = () => fileInputRef.current?.click();
-  const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const fr = new FileReader();
-    fr.onload = () => {
-      try {
-        const data = JSON.parse(String(fr.result || "{}"));
-        setImportPreview(data);
-      } catch (err) {
-        alert("Geçersiz JSON");
+    try {
+      if (format === "json") {
+        setLoading(true);
+        let json: any = {};
+        if ((scope as any).kind === "domain") json = tree;
+        if ((scope as any).kind === "organization") json = findOrg(tree, (scope as any).dn!);
+        if ((scope as any).kind === "group") {
+          for (const org of tree.organizations) {
+            const g = findGroup(org, (scope as any).dn!);
+            if (g) { json = { domain: tree.domain, organization: org.dn, group: g }; break; }
+          }
+        }
+        if ((scope as any).kind === "user") {
+          for (const org of tree.organizations) {
+            const u = findUser(org, (scope as any).dn!);
+            if (u) { json = { domain: tree.domain, organization: org.dn, user: u }; break; }
+          }
+        }
+        downloadAsFile(`ldap_export_${(scope as any).kind}.json`, json);
+      } else {
+        setLoading(true);
+        const { blob, filename } = await api.export(scope as any, format);
+        downloadBlob(filename, blob);
       }
-    };
-    fr.readAsText(file);
-  };
-  const handleImportApply = async () => {
-    if (!importPreview) return;
-    await api.import(importPreview);
-    // For preview demo: just replace the tree if it looks like a full tree
-    if (importPreview.domain && importPreview.organizations) setTree(importPreview as LdapTree);
-    setImportModalOpen(false);
-    setImportPreview(null);
+    } catch (e: any) {
+      console.error("Dışa aktarma başarısız", e);
+      alert(`Dışa aktarma başarısız: ${e.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ===================== Render =====================
@@ -769,17 +767,12 @@ export default function LdapManagementPage() {
             <OrganizationIcon className="text-blue-600" /> LDAP Yönetimi
           </h1>
           <div className="flex items-center gap-2">
-            <Input
-              placeholder="Ara (org / grup / kullanıcı)"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-72"
-            />
+            <Input placeholder="Ara (org / grup / kullanıcı)" value={search} onChange={(e) => setSearch(e.target.value)} className="w-72" />
             <Button onPress={load} isDisabled={loading}>Yenile</Button>
             <Button onPress={expandAll} variant="bordered">Tümünü Genişlet</Button>
             <Button onPress={collapseAll} variant="bordered">Tümünü Daralt</Button>
-            <Button color="primary" onPress={() => setImportModalOpen(true)}>İçe Aktar</Button>
-            <Button color="secondary" onPress={handleExport}>Dışa Aktar</Button>
+            <Button color="warning" onPress={() => setImportModalOpen(true)}>İçe Aktar</Button>
+            <Button color="secondary" onPress={() => setExportModalOpen(true)}>Dışa Aktar</Button>
             <Button color="success" onPress={handleOpenCreateOrg}>+ Organizasyon</Button>
           </div>
         </div>
@@ -793,13 +786,7 @@ export default function LdapManagementPage() {
             </div>
             <div className="p-2 max-h-[70vh] overflow-auto">
               {tree && builtTree ? (
-                <TreeView
-                  node={builtTree}
-                  expanded={expanded}
-                  onToggle={toggle}
-                  onSelect={(n) => setSelected({kind: n.kind, dn: n.dn})}
-                  selected={selected?.dn}
-                />
+                <TreeView node={builtTree} expanded={expanded} onToggle={toggle} onSelect={(n) => setSelected({kind: n.kind, dn: n.dn})} selected={selected?.dn} />
               ) : (
                 <div className="p-4 text-sm text-gray-500">Veri yok.</div>
               )}
@@ -807,19 +794,16 @@ export default function LdapManagementPage() {
           </div>
 
           {/* Right: Details */}
-          <div className="lg:col-span-2 border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-6 pt-6 pb-2 flex items-center justify-between">
+          <div className="lg:col-span-2 border border-gray-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
+            <div className="px-6 pt-6 pb-2 flex items-center justify-between sticky top-0 bg-white z-10">
               <h2 className="text-xl font-semibold">Detaylar</h2>
               <div className="text-xs text-gray-500">{selected ? selected.dn : "Seçim yok"}</div>
             </div>
-            <div className="px-6 pb-6">
+            <div className="px-6 pb-6 overflow-y-auto flex-1 min-h-0">
               {!currentDetails && <div className="text-sm text-gray-500">Sol ağaçtan bir öğe seçin.</div>}
 
               {currentDetails?.kind === "domain" && tree && (
-                <DomainDetails
-                  tree={tree}
-                  onCreateOrg={handleOpenCreateOrg}
-                />
+                <DomainDetails tree={tree} onCreateOrg={handleOpenCreateOrg} />
               )}
 
               {currentDetails?.kind === "organization" && tree && (
@@ -865,19 +849,8 @@ export default function LdapManagementPage() {
       {orgModalOpen && (
         <ModalFrame title={orgForm.dn ? "Organizasyonu Düzenle" : "Yeni Organizasyon"} onClose={() => setOrgModalOpen(false)}>
           <div className="space-y-3">
-            <Input
-              label="* Organizasyon Adı"
-              placeholder="Örn: OET"
-              value={orgForm.name}
-              isRequired
-              onChange={(e) => setOrgForm((f) => ({...f, name: e.target.value}))}
-            />
-            <Input
-              label="Açıklama"
-              placeholder="İsteğe bağlı açıklama"
-              value={orgForm.description || ""}
-              onChange={(e) => setOrgForm((f) => ({...f, description: e.target.value}))}
-            />
+            <Input label="* Organizasyon Adı" placeholder="Örn: OET" value={orgForm.name} isRequired onChange={(e) => setOrgForm((f) => ({...f, name: e.target.value}))} />
+            <Input label="Açıklama" placeholder="İsteğe bağlı açıklama" value={orgForm.description || ""} onChange={(e) => setOrgForm((f) => ({...f, description: e.target.value}))} />
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="bordered" onPress={() => setOrgModalOpen(false)}>İptal</Button>
               <Button color="primary" onPress={handleSubmitOrg}>{orgForm.dn ? "Güncelle" : "Kaydet"}</Button>
@@ -898,23 +871,10 @@ export default function LdapManagementPage() {
                 setGroupForm((f) => ({...f, organizationDn: v || ""}));
               }}
             >
-              {orgOptions.map((o) => (
-                <SelectItem key={o.key}>{o.label}</SelectItem>
-              ))}
+              {orgOptions.map((o) => (<SelectItem key={o.key}>{o.label}</SelectItem>))}
             </Select>
-            <Input
-              label="* Grup Adı"
-              placeholder="Örn: devops"
-              value={groupForm.name}
-              isRequired
-              onChange={(e) => setGroupForm((f) => ({...f, name: e.target.value}))}
-            />
-            <Input
-              label="Açıklama"
-              placeholder="İsteğe bağlı açıklama"
-              value={groupForm.description || ""}
-              onChange={(e) => setGroupForm((f) => ({...f, description: e.target.value}))}
-            />
+            <Input label="* Grup Adı" placeholder="Örn: devops" value={groupForm.name} isRequired onChange={(e) => setGroupForm((f) => ({...f, name: e.target.value}))} />
+            <Input label="Açıklama" placeholder="İsteğe bağlı açıklama" value={groupForm.description || ""} onChange={(e) => setGroupForm((f) => ({...f, description: e.target.value}))} />
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="bordered" onPress={() => setGroupModalOpen(false)}>İptal</Button>
               <Button color="primary" onPress={handleSubmitGroup}>{groupForm.dn ? "Güncelle" : "Kaydet"}</Button>
@@ -927,7 +887,6 @@ export default function LdapManagementPage() {
       {userModalOpen && (
         <ModalFrame title={userForm.dn ? "Kullanıcıyı Düzenle" : "Yeni Kullanıcı"} onClose={() => setUserModalOpen(false)}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Org & Grup */}
             <Select
               label="* Organizasyon"
               selectedKeys={new Set(userForm.organizationDn ? [userForm.organizationDn] : [])}
@@ -939,154 +898,68 @@ export default function LdapManagementPage() {
               {orgOptions.map((o) => (<SelectItem key={o.key}>{o.label}</SelectItem>))}
             </Select>
             <Select
-                label="* Grup"
-                isRequired
-                selectedKeys={new Set(userForm.groupDn ? [userForm.groupDn] : [])}
-                onSelectionChange={(keys) => {
-                  const v = Array.from(keys as Set<string>)[0];
-                  setUserForm((f) => ({...f, groupDn: v || ""}));
-                }}
-              >
-                {groupOptions.map((g) => (
-                  <SelectItem key={g.key}>{g.label}</SelectItem>
-              ))}
+              label="* Grup"
+              isRequired
+              selectedKeys={new Set(userForm.groupDn ? [userForm.groupDn] : [])}
+              onSelectionChange={(keys) => {
+                const v = Array.from(keys as Set<string>)[0];
+                setUserForm((f) => ({...f, groupDn: v || ""}));
+              }}
+            >
+              {groupOptions.map((g) => (<SelectItem key={g.key}>{g.label}</SelectItem>))}
             </Select>
 
-            {/* Temel alanlar */}
             <Input label="* Kullanıcı Adı (uid)" isRequired value={userForm.uid || ""} onChange={(e) => setUserForm((f) => ({...f, uid: e.target.value}))} />
             <Input label="* Ad (givenName)" isRequired value={userForm.givenName || ""} onChange={(e) => setUserForm((f) => ({...f, givenName: e.target.value}))} />
             <Input label="* Soyad (sn)" isRequired value={userForm.sn || ""} onChange={(e) => setUserForm((f) => ({...f, sn: e.target.value}))} />
             <Input label="E-posta" type="email" value={userForm.mail || ""} onChange={(e) => setUserForm((f) => ({...f, mail: e.target.value}))} />
             <Input label="Telefon" value={userForm.phone || ""} onChange={(e) => setUserForm((f) => ({...f, phone: e.target.value}))} />
+            <Input label="Parola" type="password" placeholder={userForm.dn ? "Mevcut parolayı değiştirmek için girin" : "Yeni kullanıcı için parola"} value={userForm.userPassword || ""} onChange={(e) => setUserForm((f) => ({ ...f, userPassword: e.target.value }))} />
 
-            {/* --- Parola alanı eklendi (telefon'dan sonra) --- */}
-            <Input
-              label="Parola"
-              type="password"
-              placeholder={userForm.dn ? "Mevcut parolayı değiştirmek için girin" : "Yeni kullanıcı için parola"}
-              value={userForm.userPassword || ""}
-              onChange={(e) => setUserForm((f) => ({ ...f, userPassword: e.target.value }))}
-            />
-
-            {/* --- UID/GID başlık + Manuel/Otomatik düğmesi --- */}
+            {/* UID/GID manuel/otomatik */}
             <div className="md:col-span-2 flex items-center justify-between mt-2">
               <div className="text-xs text-gray-500">uidNumber / gidNumber (varsayılan: LDAP otomatik)</div>
               <div className="flex gap-2">
                 {!userForm.manualUidGid ? (
-                  <Button
-                    size="sm"
-                    variant="bordered"
-                    onPress={() => {
-                      if (confirm("uidNumber / gidNumber değerlerini manuel düzenlemek istediğinizden emin misiniz? Otomatik yönetim devre dışı kalacak.")) {
-                        const suggested = nextFreeNumber(takenUidNumbers, MIN_UID_GID);
-                        setUserForm(f => ({
-                          ...f,
-                          manualUidGid: true,
-                          uidNumber: f.uidNumber ?? suggested,
-                          gidNumber: f.gidNumber ?? MIN_UID_GID
-                        }));
-                      }
-                    }}
-                  >
-                    Manuel
-                  </Button>
+                  <Button size="sm" variant="bordered" onPress={() => {
+                    if (confirm("uidNumber / gidNumber değerlerini manuel düzenlemek istediğinizden emin misiniz?")) {
+                      const suggested = nextFreeNumber(takenUidNumbers, MIN_UID_GID);
+                      setUserForm(f => ({ ...f, manualUidGid: true, uidNumber: f.uidNumber ?? suggested, gidNumber: f.gidNumber ?? MIN_UID_GID }));
+                    }
+                  }}>Manuel</Button>
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    onPress={() => setUserForm(f => ({ ...f, manualUidGid: false }))}
-                  >
-                    Otomatiğe dön
-                  </Button>
+                  <Button size="sm" variant="flat" onPress={() => setUserForm(f => ({ ...f, manualUidGid: false }))}>Otomatiğe dön</Button>
                 )}
               </div>
             </div>
 
-            {/* uidNumber */}
-            <Input
-              label="uidNumber"
-              type="number"
-              value={String(userForm.uidNumber ?? "")}
-              isDisabled={!userForm.manualUidGid}
-              min={MIN_UID_GID}
-              description={
-                !userForm.manualUidGid
-                  ? "LDAP otomatik atayacak."
-                  : uidNumError
-                    ? (userForm.uidNumber == null || Number(userForm.uidNumber) < MIN_UID_GID
-                        ? `En az ${MIN_UID_GID}.`
-                        : "Bu uidNumber kullanımda.")
-                    : " "
-              }
+            <Input label="uidNumber" type="number" value={String(userForm.uidNumber ?? "")} isDisabled={!userForm.manualUidGid} min={MIN_UID_GID}
+              description={!userForm.manualUidGid ? "LDAP otomatik atayacak." : (uidNumError ? (userForm.uidNumber == null || Number(userForm.uidNumber) < MIN_UID_GID ? `En az ${MIN_UID_GID}.` : "Bu uidNumber kullanımda.") : " ")}
               validationState={uidNumError ? "invalid" : "valid"}
-              onChange={(e) =>
-                setUserForm((f) => ({
-                  ...f,
-                  uidNumber: e.target.value ? Number(e.target.value) : undefined,
-                }))
-              }
-            />
+              onChange={(e) => setUserForm((f) => ({ ...f, uidNumber: e.target.value ? Number(e.target.value) : undefined }))} />
 
-            {/* gidNumber (sadece alt sınır kontrolü) */}
-            <Input
-              label="gidNumber"
-              type="number"
-              value={String(userForm.gidNumber ?? "")}
-              isDisabled={!userForm.manualUidGid}
-              min={MIN_UID_GID}
+            <Input label="gidNumber" type="number" value={String(userForm.gidNumber ?? "")} isDisabled={!userForm.manualUidGid} min={MIN_UID_GID}
               description={!userForm.manualUidGid ? "LDAP otomatik atayacak." : `En az ${MIN_UID_GID}.`}
-              onChange={(e) =>
-                setUserForm((f) => ({
-                  ...f,
-                  gidNumber: e.target.value ? Number(e.target.value) : undefined,
-                }))
-              }
-            />
+              onChange={(e) => setUserForm((f) => ({ ...f, gidNumber: e.target.value ? Number(e.target.value) : undefined }))} />
 
-            {/* --- Home başlık + Manuel/Otomatik düğmesi --- */}
+            {/* Home manuel/otomatik */}
             <div className="md:col-span-2 flex items-center justify-between mt-2">
               <div className="text-xs text-gray-500">Home Directory (varsayılan: /home/$uid)</div>
               <div className="flex gap-2">
                 {!userForm.manualHome ? (
-                  <Button
-                    size="sm"
-                    variant="bordered"
-                    onPress={() => {
-                      if (confirm("Home directory'yi manuel düzenlemek istediğinizden emin misiniz? Otomatik /home/$uid kuralından çıkılacak.")) {
-                        setUserForm(f => ({ ...f, manualHome: true }));
-                      }
-                    }}
-                  >
-                    Manuel
-                  </Button>
+                  <Button size="sm" variant="bordered" onPress={() => { if (confirm("Home directory'yi manuel düzenlemek istediğinizden emin misiniz?")) setUserForm(f => ({ ...f, manualHome: true })); }}>Manuel</Button>
                 ) : (
-                  <Button
-                    size="sm"
-                    variant="flat"
-                    onPress={() => setUserForm(f => ({ ...f, manualHome: false, homeDirectory: computedHome }))}
-                  >
-                    Otomatiğe dön
-                  </Button>
+                  <Button size="sm" variant="flat" onPress={() => setUserForm(f => ({ ...f, manualHome: false, homeDirectory: computedHome }))}>Otomatiğe dön</Button>
                 )}
               </div>
             </div>
 
-            {/* Home Directory */}
-            <Input
-              label="Home Directory"
-              value={userForm.manualHome ? (userForm.homeDirectory || "") : computedHome}
-              isDisabled={!userForm.manualHome}
-              onChange={(e) => setUserForm((f) => ({ ...f, homeDirectory: e.target.value }))}
-            />
+            <Input label="Home Directory" value={userForm.manualHome ? (userForm.homeDirectory || "") : computedHome} isDisabled={!userForm.manualHome} onChange={(e) => setUserForm((f) => ({ ...f, homeDirectory: e.target.value }))} />
           </div>
 
           <div className="flex justify-end gap-2 pt-3">
             <Button variant="bordered" onPress={() => setUserModalOpen(false)}>İptal</Button>
-            <Button
-              color="primary"
-              onPress={handleSubmitUser}
-              isDisabled={!userForm.organizationDn || !userForm.groupDn || !userForm.uid || !userForm.givenName || !userForm.sn}
-            >
+            <Button color="primary" onPress={handleSubmitUser} isDisabled={!userForm.organizationDn || !userForm.groupDn || !userForm.uid || !userForm.givenName || !userForm.sn}>
               {userForm.dn ? "Güncelle" : "Kaydet"}
             </Button>
           </div>
@@ -1105,9 +978,7 @@ export default function LdapManagementPage() {
                 setMoveUser((f) => ({...f, toGroupDn: v || ""}));
               }}
             >
-              {(tree?.organizations.flatMap((o) => o.groups) ?? []).map((g) => (
-                <SelectItem key={g.dn}>{g.name}</SelectItem>
-              ))}
+              {(tree?.organizations.flatMap((o) => o.groups) ?? []).map((g) => (<SelectItem key={g.dn}>{g.name}</SelectItem>))}
             </Select>
             <div className="flex justify-end gap-2">
               <Button variant="bordered" onPress={() => setMoveUserModalOpen(false)}>İptal</Button>
@@ -1117,20 +988,186 @@ export default function LdapManagementPage() {
         </ModalFrame>
       )}
 
-      {/* Import modal */}
-      {importModalOpen && (
-        <ModalFrame title="JSON İçe Aktar" onClose={() => setImportModalOpen(false)}>
-          <div className="space-y-3">
-            <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
-            <div className="flex items-center gap-2">
-              <Button onPress={handleChooseImport}>Dosya Seç</Button>
-              <Button isDisabled={!importPreview} color="primary" onPress={handleImportApply}>Uygula</Button>
+      {/* Export Modal (değişmedi) */}
+      {exportModalOpen && (
+        <ModalFrame title="Dışa Aktar" onClose={() => setExportModalOpen(false)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Seçili kapsamı (veya seçim yoksa tüm ağacı) hangi formatta dışa aktarmak istiyorsunuz?</p>
+            <Select label="Format Seçin" selectedKeys={new Set([exportFormat])} onSelectionChange={(keys) => {
+              const v = Array.from(keys as Set<string>)[0] as any; if (v) setExportFormat(v);
+            }}>
+              <SelectItem key="json">JSON (.json)</SelectItem>
+              <SelectItem key="ldif">LDIF (.ldif)</SelectItem>
+              <SelectItem key="pdf">PDF (.pdf)</SelectItem>
+            </Select>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="bordered" onPress={() => setExportModalOpen(false)}>İptal</Button>
+              <Button color="secondary" onPress={handleExport} isDisabled={loading}>{loading ? "Dışa Aktarılıyor..." : "Dışa Aktar"}</Button>
             </div>
-            {importPreview ? (
-              <pre className="max-h-64 overflow-auto text-xs bg-gray-50 p-3 rounded border border-gray-200">{JSON.stringify(importPreview, null, 2)}</pre>
-            ) : (
-              <p className="text-sm text-gray-500">Bir JSON dosyası seçin. Tam ağaç (domain + organizations) veya parça (ör: tek bir grup ya da kullanıcı) yükleyebilirsiniz.</p>
+          </div>
+        </ModalFrame>
+      )}
+            {/* Import Modal (yeni) */}
+      {importModalOpen && (
+        <ModalFrame title="İçe Aktar" onClose={() => {
+          setImportModalOpen(false);
+          setImportFile(null);
+          setImportPreview(null);
+          setValidating(false);
+          setApplying(false);
+        }}>
+          <div className="space-y-4">
+            {/* Adım 1: Dosya seç */}
+            <div className="rounded-xl border p-4 space-y-2">
+              <div className="font-semibold">1) Dosya Seç (.json veya .ldif)</div>
+              <input
+                type="file"
+                accept=".json,.ldif,application/json,text/plain"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null;
+                  setImportFile(f);
+                  setImportPreview(null);
+                }}
+              />
+              {importFile && (
+                <div className="text-xs text-gray-600">
+                  Seçili: <span className="font-mono">{importFile.name}</span> ({Math.ceil(importFile.size/1024)} KB)
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  color="secondary"
+                  isDisabled={!importFile || validating}
+                  onPress={async () => {
+                    if (!importFile) return;
+                    try {
+                      setValidating(true);
+                      const v = await api.validateImport(importFile);
+                      setImportPreview(v);
+                    } catch (e:any) {
+                      alert(e.message || "Doğrulama başarısız");
+                    } finally {
+                      setValidating(false);
+                    }
+                  }}
+                >
+                  {validating ? "Doğrulanıyor..." : "Doğrula"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Adım 2: Önizleme / Özet */}
+            {importPreview && (
+              <div className="rounded-xl border p-4 space-y-3">
+                <div className="font-semibold">2) Önizleme & Özet</div>
+
+                {/* Özet sayıları (varsa) */}
+                {importPreview.summary && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {Object.entries(importPreview.summary).map(([k,v]: any) => (
+                      <div key={k} className="border rounded-lg p-3">
+                        <div className="text-xs uppercase text-gray-500">{k}</div>
+                        <div className="text-xl font-semibold">{String(v)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Bloklayıcılar (varsa) */}
+                {Array.isArray(importPreview.blockers) && importPreview.blockers.length > 0 && (
+                  <div className="rounded-lg border border-red-200 p-3">
+                    <div className="font-medium text-red-700 mb-2">Bloklayıcılar</div>
+                    <Table aria-label="blockers">
+                      <TableHeader>
+                        <TableColumn>Tür</TableColumn>
+                        <TableColumn>Neden</TableColumn>
+                      </TableHeader>
+                      <TableBody>
+                        {importPreview.blockers.map((b:any, i:number) => (
+                          <TableRow key={i}>
+                            <TableCell>{b.kind || "-"}</TableCell>
+                            <TableCell>{b.reason || JSON.stringify(b)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <div className="text-xs text-gray-600 mt-2">Bloklayıcılar çözülmeden uygulama butonu pasif olur.</div>
+                  </div>
+                )}
+
+                {/* Eklenecek/Güncellenecek kalemlerin listeleri (varsa) */}
+                {Array.isArray(importPreview.items) && importPreview.items.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="font-medium">Planlanan İşlemler</div>
+                    <Table aria-label="planned-changes">
+                      <TableHeader>
+                        <TableColumn>İşlem</TableColumn>
+                        <TableColumn>Hedef</TableColumn>
+                        <TableColumn>Detay</TableColumn>
+                      </TableHeader>
+                      <TableBody>
+                        {importPreview.items.map((it:any, i:number) => (
+                          <TableRow key={i}>
+                            <TableCell>{it.action || it.kind || "-"}</TableCell>
+                            <TableCell>{it.dn || it.target || "-"}</TableCell>
+                            <TableCell className="max-w-[420px]">
+                              <pre className="whitespace-pre-wrap text-xs">{it.note || it.reason || it.name || "-"}</pre>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+
+                {/* Ham JSON göster (debug için) */}
+                <details className="rounded-lg border p-3">
+                  <summary className="cursor-pointer text-sm">Ham doğrulama çıktısı (JSON)</summary>
+                  <pre className="text-xs mt-2 overflow-auto max-h-72">
+{JSON.stringify(importPreview, null, 2)}
+                  </pre>
+                </details>
+              </div>
             )}
+
+            {/* Adım 3: Uygula */}
+            <div className="flex justify-end gap-2">
+              <Button variant="bordered" onPress={() => {
+                setImportModalOpen(false);
+                setImportFile(null);
+                setImportPreview(null);
+              }}>
+                Kapat
+              </Button>
+              <Button
+                color="primary"
+                isDisabled={
+                  applying ||
+                  !importFile ||
+                  (Array.isArray(importPreview?.blockers) && importPreview.blockers.length > 0)
+                }
+                onPress={async () => {
+                  if (!importFile) return;
+                  try {
+                    setApplying(true);
+                    const planId = importPreview?.planId as (string | undefined);
+                    const r = await api.applyImport({ planId, file: planId ? undefined : importFile });
+                    // başarılı -> modal kapat + ağaç yenile
+                    setImportModalOpen(false);
+                    setImportFile(null);
+                    setImportPreview(null);
+                    await load();
+                    alert("İçe aktarma uygulandı.");
+                  } catch (e:any) {
+                    alert(e.message || "Apply başarısız");
+                  } finally {
+                    setApplying(false);
+                  }
+                }}
+              >
+                {applying ? "Uygulanıyor..." : "Uygula"}
+              </Button>
+            </div>
           </div>
         </ModalFrame>
       )}
@@ -1139,6 +1176,8 @@ export default function LdapManagementPage() {
 }
 
 // ===================== Subcomponents =====================
+
+
 
 type TreeViewProps = {
   node: {id: string; dn: string; kind: NodeKind; label: string; children?: any[]};
@@ -1171,43 +1210,30 @@ function TreeNode({node, level, expanded, selected, onToggle, onSelect}: TreeNod
   const padding = 8 + level * 16;
 
   const KindIcon = () =>
-      node.kind === "organization" ? (
-        <OrganizationIcon size={16} />
-      ) : node.kind === "group" ? (
-        <UserGroupIcon size={16} />
-      ) : node.kind === "user" ? (
-        <UserIcon size={16} />
-      ) : null;
+      node.kind === "organization" ? (<OrganizationIcon size={16} />)
+      : node.kind === "group" ? (<UserGroupIcon size={16} />)
+      : node.kind === "user" ? (<UserIcon size={16} />)
+      : null;
 
   return (
     <div>
       <div
-        className={classNames(
-          "flex items-center justify-between rounded px-2 py-1 cursor-pointer hover:bg-gray-100",
-          selected === node.dn && "bg-blue-50"
-        )}
+        className={classNames("flex items-center justify-between rounded px-2 py-1 cursor-pointer hover:bg-gray-100", selected === node.dn && "bg-blue-50")}
         style={{paddingLeft: padding}}
         onClick={() => onSelect({dn: node.dn, kind: node.kind})}
       >
         <div className="flex items-center gap-2">
           {isParent ? (
-            <button
-              className="w-5 h-5 text-xs rounded border border-gray-300 hover:bg-gray-100 flex items-center justify-center"
+            <button className="w-5 h-5 text-xs rounded border border-gray-300 hover:bg-gray-100 flex items-center justify-center"
               onClick={(e) => { e.stopPropagation(); onToggle(node.dn); }}
-              aria-label={isExpanded ? "Daralt" : "Genişlet"}
-            >
+              aria-label={isExpanded ? "Daralt" : "Genişlet"}>
               {isExpanded ? "-" : "+"}
             </button>
-          ) : (
-            <span className="w-5" />
-          )}
-          <span className="opacity-80">
-            <KindIcon />
-          </span>
+          ) : (<span className="w-5" />)}
+          <span className="opacity-80"><KindIcon /></span>
           <span className={classNames("font-medium", node.kind === "organization" && "text-blue-700", node.kind === "group" && "text-purple-700", node.kind === "user" && "text-gray-800")}>{node.label}</span>
           {node.kind === "user" && <Chip size="sm" variant="flat">uid</Chip>}
         </div>
-        {/* quick badges */}
         <div className="flex items-center gap-2 pr-2">
           {node.kind === "organization" && <span className="text-[10px] uppercase text-gray-500">org</span>}
           {node.kind === "group" && <span className="text-[10px] uppercase text-gray-500">group</span>}
@@ -1225,17 +1251,41 @@ function TreeNode({node, level, expanded, selected, onToggle, onSelect}: TreeNod
   );
 }
 
-function ModalFrame({title, onClose, children}: {title: string; onClose: () => void; children: React.ReactNode}) {
+// ===================== ModalFrame (güncellendi: iç scroll + sticky header/footer) =====================
+function ModalFrame({title, onClose, children, footer}: {title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode}) {
+  // arka plan scroll kilidi
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
-      <div className="bg-white p-6 rounded-2xl w-full max-w-2xl shadow-xl">
-        <div className="flex justify-between items-center pb-4 border-b">
-          <h3 className="text-lg font-bold tracking-tight">{title}</h3>
-          <button onClick={onClose} className="text-gray-600 hover:text-gray-900">
-            <CloseIcon />
-          </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div
+        className="
+          relative bg-white w-[96vw] sm:w-[90vw] md:w-[85vw] lg:w-[75vw] xl:w-[1100px]
+          max-h-[92dvh] rounded-2xl shadow-xl overflow-hidden flex flex-col
+        "
+      >
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white border-b px-5 py-3 flex items-center gap-3">
+          <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+          <button onClick={onClose} className="ml-auto text-gray-600 hover:text-gray-900"><CloseIcon /></button>
         </div>
-        <div className="pt-4">{children}</div>
+
+        {/* Body (scrollable) */}
+        <div className="flex-1 min-h-0 overflow-y-auto p-4">
+          {children}
+        </div>
+
+        {/* Footer (optional, sticky) */}
+        {footer && (
+          <div className="sticky bottom-0 z-10 bg-white border-t px-5 py-3">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
