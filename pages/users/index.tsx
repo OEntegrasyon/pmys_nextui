@@ -107,9 +107,9 @@ export default function DocsPage() {
   };
 
   const fetchPolicies = () => {
-    fetch(`${API_BASE}/policy/policies/`)
+    fetch(`${API_BASE}/policy/policies/?paginate=false`)
       .then(res => res.json())
-      .then(data => setPolicy(data.results))
+      .then(data => setPolicy(data))
       .catch(err => console.error('Error fetching policies'));
   };
 
