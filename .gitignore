@@ -52,3 +52,5 @@ bun.lockb
 pages/ldap/policy_old/
 index importsuz.tsx
 package.json
+
+tree.txt

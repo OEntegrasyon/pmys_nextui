@@ -4,17 +4,13 @@ import { Tabs, Tab } from "@heroui/tabs";
 import { Card, CardBody } from "@heroui/card";
 import { Table, TableHeader, TableColumn, TableBody, TableCell, TableRow, getKeyValue } from "@heroui/table";
 import { Spinner } from "@heroui/spinner";
-// --- ÇÖZÜM 1: 'next/dynamic' import ediliyor ---
 import dynamic from 'next/dynamic';
 
-// --- ÇÖZÜM 2: Pagination bileşeni SSR olmadan, dinamik olarak yükleniyor ---
-// Bu, "Cannot read properties of null (reading 'childNodes')" hatasını çözer.
 const Pagination = dynamic(
   () => import('@heroui/pagination').then((mod) => mod.Pagination),
   { ssr: false }
 );
 
-// --- TİP TANIMLAMALARI (DÜZELTİLMİŞ) ---
 type PaginatedResponse<T> = {
   count: number;
   next: string | null;
@@ -34,21 +30,23 @@ type PolicyAssignment = {
 
 type PolicyLogs = {
   id: string;
-  action: string;
+  action: string; 
   timestamp: string;
   details: {
     message: string;
-    username?: string;
+    username?: string; 
     parameters?: Record<string, any>;
     policy_type?: string;
+    client_uuid?: string;
+    source?: 'user' | 'client';
   };
 };
 
 type ClientLogs = {
   id: string;
-  action: string;
+  action: string; 
   timestamp: string;
-  details: Record<string, any>;
+  details: Record<string, any>; 
   client_uuid: string;
   client_hostname: string;
 };
@@ -60,30 +58,31 @@ type TabItem = {
   rows: Record<string, any>[];
 };
 
-// Django settings.py dosyanızdaki PAGE_SIZE ile aynı olmalı
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 50; 
 
 export default function LogsPage() {
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL;
 
   const [policyAssignments, setPolicyAssignments] = useState<PolicyAssignment[]>([]);
-  const [policyLogs, setPolicyLogs] = useState<PolicyLogs[]>([]);
-  const [clientLogs, setClientLogs] = useState<ClientLogs[]>([]);
+  const [userPolicyLogs, setUserPolicyLogs] = useState<PolicyLogs[]>([]);
+  const [clientStatusLogs, setClientStatusLogs] = useState<ClientLogs[]>([]);
+  const [clientPolicyAssignments, setClientPolicyAssignments] = useState<ClientLogs[]>([]);
+  const [clientPolicyLogs, setClientPolicyLogs] = useState<PolicyLogs[]>([]);
 
-  // Her tab için mevcut sayfayı ve toplam sayfa sayısını tutan state
   const [pagination, setPagination] = useState({
-    policy_assignments: { current: 1, total: 0 },
-    policy_logs: { current: 1, total: 0 },
-    client_logs: { current: 1, total: 0 },
+    user_policy_assignments: { current: 1, total: 0 },
+    user_policy_logs: { current: 1, total: 0 },
+    client_status_logs: { current: 1, total: 0 },
+    client_policy_assignments: { current: 1, total: 0 }, // YENİ
+    client_policy_logs: { current: 1, total: 0 }, // YENİ
   });
 
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [tabs, setTabs] = useState<TabItem[]>([]);
   
-  const positiveMessages = ["login", "connected", "policy_applied"];
-  const negativeMessages = ["disconnected","failed", "policy_failed"];
+  const positiveMessages = ["login", "connected", "policy_applied", "policy_assigned"];
+  const negativeMessages = ["disconnected", "failed", "policy_failed", "policy_removed"];
 
-  // Belirtilen sayfayı çeken güncellenmiş fonksiyon
   const fetchPaginatedData = useCallback(async <T,>(
       endpoint: string,
       page: number,
@@ -96,9 +95,9 @@ export default function LogsPage() {
     setLoading(prev => ({ ...prev, [key]: true }));
     try {
       const res = await fetch(url);
+      if (!res.ok) throw new Error(`Fetch error: ${res.statusText} (${url})`);
       const data: PaginatedResponse<T> = await res.json();
       
-      // Veriyi listeye eklemek yerine doğrudan yenisiyle değiştiriyoruz
       setData(data.results);
       setTotalPages(Math.ceil(data.count / PAGE_SIZE));
 
@@ -108,103 +107,172 @@ export default function LogsPage() {
     } finally {
       setLoading(prev => ({ ...prev, [key]: false }));
     }
-  }, []); // Bağımlılık dizisi boş, fonksiyon sadece bir kez oluşturulur
+  }, [API_BASE]); 
 
-  // Sayfa numarası değiştikçe ilgili veriyi çeken useEffect'ler
   useEffect(() => {
     fetchPaginatedData(
-      '/policy/policy_assignments/',
-      pagination.policy_assignments.current,
+      '/policy/policy_assignments/', 
+      pagination.user_policy_assignments.current,
       setPolicyAssignments,
-      (total) => setPagination(p => ({ ...p, policy_assignments: { ...p.policy_assignments, total } })),
-      'policy_assignments'
+      (total) => setPagination(p => ({ ...p, user_policy_assignments: { ...p.user_policy_assignments, total } })),
+      'user_policy_assignments'
     );
-  }, [pagination.policy_assignments.current]);
+  }, [pagination.user_policy_assignments.current, fetchPaginatedData]);
 
   useEffect(() => {
     fetchPaginatedData(
-      '/policy/policy_logs/',
-      pagination.policy_logs.current,
-      setPolicyLogs,
-      (total) => setPagination(p => ({ ...p, policy_logs: { ...p.policy_logs, total } })),
-      'policy_logs'
+      '/policy/policy_logs/', 
+      pagination.user_policy_logs.current,
+      setUserPolicyLogs,
+      (total) => setPagination(p => ({ ...p, user_policy_logs: { ...p.user_policy_logs, total } })),
+      'user_policy_logs'
     );
-  }, [pagination.policy_logs.current]);
+  }, [pagination.user_policy_logs.current, fetchPaginatedData]);
 
   useEffect(() => {
     fetchPaginatedData(
-      '/client/client_logs/',
-      pagination.client_logs.current,
-      setClientLogs,
-      (total) => setPagination(p => ({ ...p, client_logs: { ...p.client_logs, total } })),
-      'client_logs'
+      '/client/client_logs/', 
+      pagination.client_status_logs.current,
+      setClientStatusLogs,
+      (total) => setPagination(p => ({ ...p, client_status_logs: { ...p.client_status_logs, total } })),
+      'client_status_logs'
     );
-  }, [pagination.client_logs.current]);
+  }, [pagination.client_status_logs.current, fetchPaginatedData]);
 
-  // Gelen veriye göre Tab'leri oluşturan useEffect
   useEffect(() => {
-    const createTabs = (assignments: PolicyAssignment[], logs: PolicyLogs[], client_logs: ClientLogs[]): void => {
-      let newTabs = [
+    fetchPaginatedData(
+      '/client/client_policy_assignment_logs/', 
+      pagination.client_policy_assignments.current,
+      setClientPolicyAssignments,
+      (total) => setPagination(p => ({ ...p, client_policy_assignments: { ...p.client_policy_assignments, total } })),
+      'client_policy_assignments'
+    );
+  }, [pagination.client_policy_assignments.current, fetchPaginatedData]);
+
+  useEffect(() => {
+    fetchPaginatedData(
+      '/policy/client_policy_logs/',
+      pagination.client_policy_logs.current,
+      setClientPolicyLogs,
+      (total) => setPagination(p => ({ ...p, client_policy_logs: { ...p.client_policy_logs, total } })),
+      'client_policy_logs'
+    );
+  }, [pagination.client_policy_logs.current, fetchPaginatedData]);
+
+  useEffect(() => {
+    const createTabs = (): void => {
+      let newTabs: TabItem[] = [
         {
-          id: "policy_assignments",
-          label: "Politika Atamaları",
+          id: "user_policy_assignments",
+          label: "Kullanıcı Atama Logları",
           columns: [
-              { key: "policy_type_name", label: "Politika Türü" }, { key: "policy_name", label: "Politika Adı" },
-              { key: "assigned_to_username", label: "Atanan Kullanıcı" }, { key: "created_at", label: "Oluşturulma Tarihi" },
+            { key: "policy_type_name", label: "Politika Türü" }, { key: "policy_name", label: "Politika Adı" },
+            { key: "assigned_to_username", label: "Atanan Kullanıcı" }, { key: "created_at", label: "Tarih" },
           ],
-          rows: assignments.map(assignment => ({
-              key: assignment.id,
-              policy_type_name: assignment.policy?.policy_type_name ?? 'N/A',
-              policy_name: assignment.policy?.name ?? 'N/A',
-              assigned_to_username: assignment.assigned_to_username,
-              created_at: new Date(assignment.created_at).toLocaleString('tr-TR'),
+          rows: policyAssignments.map(assignment => ({
+            key: assignment.id,
+            policy_type_name: assignment.policy?.policy_type_name ?? 'N/A',
+            policy_name: assignment.policy?.name ?? 'N/A',
+            assigned_to_username: assignment.assigned_to_username,
+            created_at: new Date(assignment.created_at).toLocaleString('tr-TR'),
           })),
         },
         {
-          id: "policy_logs",
-          label: "Politika Logları",
+          id: "user_policy_logs",
+          label: "Kullanıcı Sonuç Logları",
           columns: [
-              { key: "action", label: "Eylem" }, { key: "timestamp", label: "Tarih" }, { key: "details", label: "Detaylar" },
+            { key: "action", label: "Eylem" }, { key: "timestamp", label: "Tarih" }, 
+            { key: "policy_type", label: "Politika Türü" }, { key: "details", label: "Detay" },
+            { key: "username", label: "Kullanıcı" },
           ],
-          rows: logs.map(log => ({ 
-              id: log.id,
-              action: log.action,
-              timestamp: new Date(log.timestamp).toLocaleString('tr-TR'),
-              details: log.details.message, 
+          rows: userPolicyLogs.map(log => ({ 
+            id: log.id,
+            action: log.action,
+            timestamp: new Date(log.timestamp).toLocaleString('tr-TR'),
+            policy_type: log.details.policy_type ?? 'N/A',
+            details: log.details.message, 
+            username: log.details.username ?? 'N/A',
           })),
         },
         {
-          id: "client_logs",
-          label: "İstemci Logları",
+          id: "client_status_logs",
+          label: "İstemci Durum Logları",
           columns: [
-              { key: "action", label: "Eylem" }, { key: "timestamp", label: "Tarih" }, { key: "details", label: "Detaylar" },
-              { key: "client_uuid", label: "İstemci UUID" }, { key: "client_hostname", label: "İstemci Adı" },
+            { key: "action", label: "Eylem" }, { key: "timestamp", label: "Tarih" }, 
+            { key: "client_hostname", label: "İstemci Adı" }, { key: "details", label: "Detay (IP)" },
           ],
-          rows: client_logs.map(log => ({
-              ...log,
-              timestamp: new Date(log.timestamp).toLocaleString('tr-TR'),
-              details: JSON.stringify(log.details),
+          rows: clientStatusLogs.map(log => ({
+            ...log,
+            timestamp: new Date(log.timestamp).toLocaleString('tr-TR'),
+            details: log.details?.ip ?? log.details?.hostname ?? JSON.stringify(log.details),
           })),
-        }
+        },
+
+        {
+          id: "client_policy_assignments",
+          label: "İstemci Atama Logları",
+          columns: [
+            { key: "action", label: "Eylem" }, { key: "timestamp", label: "Tarih" },
+            { key: "client_hostname", label: "İstemci Adı" }, { key: "policy_name", label: "Politika Adı" },
+            { key: "details", label: "Detay" },
+          ],
+          rows: clientPolicyAssignments.map(log => ({
+            id: log.id,
+            action: log.action,
+            timestamp: new Date(log.timestamp).toLocaleString('tr-TR'),
+            client_hostname: log.client_hostname,
+            policy_name: log.details.policy_name ?? 'N/A',
+            details: log.details.message,
+          })),
+        },
+        {
+          id: "client_policy_logs",
+          label: "İstemci Sonuç Logları",
+          columns: [
+            { key: "action", label: "Eylem" }, { key: "timestamp", label: "Tarih" },
+            { key: "client_uuid", label: "İstemci UUID" },
+            { key: "policy_type", label: "Politika Türü" }, { key: "details", label: "Detay" },
+          ],
+          rows: clientPolicyLogs.map(log => ({
+            id: log.id,
+            action: log.action,
+            timestamp: new Date(log.timestamp).toLocaleString('tr-TR'),
+            client_uuid: log.details.client_uuid ?? 'N/A',
+            policy_type: log.details.policy_type ?? 'N/A',
+            details: log.details.message,
+          })),
+        },
       ];
       setTabs(newTabs);
     }
-    
-    createTabs(policyAssignments, policyLogs, clientLogs);
-  }, [policyAssignments, policyLogs, clientLogs]);
 
-  // Pagination bileşeninden gelen sayfa değiştirme olayını yöneten fonksiyon
+    createTabs();
+  },
+    [
+      policyAssignments, 
+      userPolicyLogs, 
+      clientStatusLogs, 
+      clientPolicyAssignments, 
+      clientPolicyLogs
+    ]
+  );
+ 
   const handlePageChange = (tabId: string, page: number) => {
-    setPagination(prev => ({
-      ...prev,
-      [tabId]: { ...prev[tabId as keyof typeof prev], current: page },
-    }));
+    setPagination(prev => {
+      if (tabId in prev) {
+        return {
+          ...prev,
+          [tabId]: { ...prev[tabId as keyof typeof prev], current: page },
+        };
+      }
+      return prev;
+    });
   };
   
   const getPaginationForTab = (tabId: string) => {
-      return pagination[tabId as keyof typeof pagination];
+      return pagination[tabId as keyof typeof pagination] || { current: 1, total: 0 };
   }
-  
+
   return (
     <DefaultLayout>
         <Tabs aria-label="tab" items={tabs}>
@@ -223,11 +291,11 @@ export default function LogsPage() {
                       emptyContent={"Gösterilecek log bulunamadı."}
                     >
                       {(row) => (
-                        <TableRow key={row.id}>
+                        <TableRow key={row.key ?? row.id}> 
                           {(columnKey) => <TableCell
                             className={
-                                positiveMessages.includes(getKeyValue(row, columnKey)) ? 'text-emerald-500' :
-                                negativeMessages.includes(getKeyValue(row, columnKey)) ? 'text-red-500' : ''
+                                String(getKeyValue(row, columnKey)).includes('policy_failed') || negativeMessages.includes(String(getKeyValue(row, columnKey))) ? 'text-red-500' :
+                                String(getKeyValue(row, columnKey)).includes('policy_applied') || positiveMessages.includes(String(getKeyValue(row, columnKey))) ? 'text-emerald-500' : ''
                             }
                           >
                             {getKeyValue(row, columnKey)}
@@ -238,7 +306,6 @@ export default function LogsPage() {
                   </Table>
                   
                   <div className="flex justify-center items-center p-4">
-                    {/* Yüklenme tamamlandığında ve sayfa sayısı 1'den fazla ise Pagination'ı göster */}
                     {!loading[item.id] && getPaginationForTab(item.id).total > 1 && (
                         <Pagination
                             total={getPaginationForTab(item.id).total}
