@@ -192,7 +192,6 @@ export default function DocsPage() {
         alert(`Kullanıcı bulunamadı: ${user_id}`);
         return;
       }
-      // let unassigned_policies = user.policies?.filter(p_id => !policyIds.includes(p_id))
       user.policies = []
       for (const policy_id of policyIds) {
         const policy = policies?.find(p => p.id === policy_id);
@@ -609,7 +608,6 @@ export default function DocsPage() {
                 <span className="font-bold">Hepsini Seç / Bırak</span>
               </Checkbox>
 
-              {/* 🔎 Filtrelenmiş CIS Politikaları */}
               <div className="pl-4 mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4">
                 {cisPolicies
                   .filter(policy => policy.name.toLowerCase().includes(searchTerm))

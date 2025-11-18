@@ -127,14 +127,12 @@ const api = {
     if (!r.ok) throw new Error(await r.text());
     return true;
   },
-  // ---- new: accounts/effective/assignments ----
   async clientAccounts(key: string): Promise<{account_name: string}[]> {
     const r = await fetch(`${API_BASE}/laps/api/clients/${encodeURIComponent(key)}/accounts/`);
     if (!r.ok) return [];
     return r.json();
   },
   async clientEffectivePolicy(key: string): Promise<EffectivePolicyResp | null> {
-    // Bu uç sunucuda opsiyonel. 404 olursa null döndür.
     const url = `${API_BASE}/laps/api/clients/${encodeURIComponent(key)}/effective-policy/`;
     const r = await fetch(url);
     if (!r.ok) return null;
@@ -168,7 +166,7 @@ const api = {
   q?: string;
   action?: "rotate"|"view"|"report"|"bulk_rotate"|"error"|"";
   client?: string;
-  date_from?: string; // "YYYY-MM-DD" veya ISO
+  date_from?: string; 
   date_to?: string;
   page?: number;
   page_size?: number;
@@ -235,7 +233,6 @@ function healthChip(h: Health) {
 export default function LapsSuitePage() {
   const [tab, setTab] = useState<"clients"|"policies"|"assign"|"audit">("clients");
 
-  // common data
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loadingPolicies, setLoadingPolicies] = useState(false);
 
@@ -344,20 +341,16 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
       } catch {
         setAccounts(prev => ({...prev, [openDetail.uuid]: fallbackAccounts(openDetail)}));
       }
-      // effective policy (opsiyonel endpoint; yoksa fallback)
       try {
         const eff = await api.clientEffectivePolicy(openDetail.uuid);
         if (eff?.policy?.id) {
           setClientPolicy(prev => ({...prev, [openDetail.uuid]: eff.policy!.id!}));
           setClientPolicySource(prev => ({...prev, [openDetail.uuid]: eff.source || null}));
         } else {
-          // fallback: hiçbir şey set etme
         }
       } catch {/* ignore */}
-      // history
       const hist = await api.history(openDetail.uuid);
       setHistoryItems(hist);
-      // varsayılan override alanını temizle
       setAccountOverride("");
     })();
   }, [openDetail]);
@@ -405,8 +398,7 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
   // actions
   const onReveal = async (uuid: string) => {
     try {
-      const s = await api.getSecret(uuid, true); // autogen=1: yoksa oluştur
-      // grant modal state'leri
+      const s = await api.getSecret(uuid, true); 
       setSecret(s);
       setReveal(true);
     } catch (e: any) {
@@ -449,7 +441,7 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
     }
   };
 
-  // history (detail)
+  // history 
   const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
   const openHistory = async (uuid: string) => {
     const items = await api.history(uuid);
@@ -458,9 +450,7 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
 
   return (
     <section className="flex flex-col gap-6 py-6">
-      {/* Üst kontrol alanı / filtre kartları */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Arama */}
         <CardBox title="Arama">
           <Input
             aria-label="Arama"
@@ -470,7 +460,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
           />
         </CardBox>
 
-        {/* Filtreler */}
         <CardBox title="Filtreler">
           <div className="flex flex-col gap-3">
             <Switch aria-label="Sadece çevrimiçi" isSelected={onlyOnline} onValueChange={setOnlyOnline}>
@@ -503,7 +492,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
           </div>
         </CardBox>
 
-        {/* Hızlı Eylemler */}
         <CardBox title="Hızlı Eylemler">
           <div className="flex flex-wrap gap-2">
             <Button color="primary" variant="flat" onPress={load} isDisabled={loading} aria-label="Yenile">
@@ -524,7 +512,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
         </CardBox>
       </div>
 
-      {/* İstemciler tablosu */}
       <div className="inline-block w-full overflow-x-auto shadow rounded-2xl border border-gray-200">
         <div className="flex justify-between items-center px-6 pt-6 pb-2">
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
@@ -633,7 +620,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
         )}
       </div>
 
-      {/* Seçim aksiyon barı */}
       {selectedKeys.length > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-full border border-gray-200 dark:border-gray-800 bg-background shadow-md flex items-center gap-3">
           <div className="text-sm">Seçili: {selectedKeys.length}</div>
@@ -644,7 +630,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
         </div>
       )}
 
-      {/* Gizli parola paneli (global) */}
       {secret && (
         <div className="inline-block w-full shadow rounded-2xl border border-gray-200 p-4">
           <h4 className="font-medium mb-2">Parola</h4>
@@ -674,10 +659,8 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
         </div>
       )}
 
-      {/* Sağ detay paneli */}
       {openDetail && (
         <SidePanel title={`Detay • ${openDetail.hostname || openDetail.uuid}`} onClose={() => setOpenDetail(null)}>
-          {/* İzlenen Hesaplar */}
           <CardBox title="İzlenen Hesaplar">
             <div className="flex flex-col gap-2">
               {(accounts[openDetail.uuid] || fallbackAccounts(openDetail)).map((a,i) => (
@@ -692,7 +675,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
             </div>
           </CardBox>
 
-          {/* Effective Policy */}
           <CardBox title="Effective Policy">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Select
@@ -734,7 +716,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
                       policy: pid,
                       account_name_override: accountOverride?.trim() || undefined,
                     });
-                    // başarılı: accounts & history & effective (opsiyonel) tazele
                     try {
                       const list = await api.clientAccounts(openDetail.uuid);
                       setAccounts(prev => ({...prev, [openDetail.uuid]: (list?.length ? list : fallbackAccounts(openDetail))}));
@@ -759,7 +740,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
               </Button>
             </div>
 
-            {/* Özet */}
             <Divider className="my-4" />
             {(() => {
               const pid = clientPolicy[openDetail.uuid];
@@ -786,7 +766,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
             })()}
           </CardBox>
 
-          {/* Tarihçe */}
           <CardBox title="Parola Tarihçesi">
             {historyItems.length ? (
               <Table aria-label="history">
@@ -812,7 +791,6 @@ function ClientsView({policies, refreshPolicies}:{policies: Policy[]; refreshPol
         </SidePanel>
       )}
 
-      {/* Grant modal */}
       {grantOpen && (
         <ModalFrame title="Parola Görüntüleme Onayı" onClose={()=>{ setGrantOpen(false); setJustification(""); setTicket(""); }}>
           <div className="grid grid-cols-1 gap-3">
@@ -874,7 +852,6 @@ function PoliciesView({policies, loading, onChanged}:{policies: Policy[]; loadin
 
   return (
     <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 py-6">
-      {/* Liste */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
         <div className="flex items-center justify-between mb-2">
           <div className="font-medium">Mevcut Politikalar</div>
@@ -934,12 +911,11 @@ function PoliciesView({policies, loading, onChanged}:{policies: Policy[]; loadin
         {(!policies.length && !loading) && <div className="text-sm text-gray-500 p-3">Politika yok.</div>}
       </div>
 
-      {/* Form */}
+    
       <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-4">
         <div className="font-medium mb-3">{form?.id ? "Politika Düzenle" : "Yeni Politika"}</div>
         <Divider className="my-2" />
 
-        {/* Şifre İlkeleri */}
         <div className="mb-2 font-medium">Şifre İlkeleri</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <Input label="* Ad" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} />
@@ -956,7 +932,6 @@ function PoliciesView({policies, loading, onChanged}:{policies: Policy[]; loadin
           </div>
         </div>
 
-        {/* Post-Auth */}
         <div className="mb-2 font-medium">Post-Authentication</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <Select
@@ -974,7 +949,6 @@ function PoliciesView({policies, loading, onChanged}:{policies: Policy[]; loadin
           <Switch isSelected={form.rotate_on_unlock} onValueChange={v => setForm(f => ({...f, rotate_on_unlock: v}))}>Unlock sonrası reset</Switch>
         </div>
 
-        {/* Yedekleme & Erişim */}
         <div className="mb-2 font-medium">Yedekleme & Erişim</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <Select
@@ -996,14 +970,12 @@ function PoliciesView({policies, loading, onChanged}:{policies: Policy[]; loadin
           </div>
         </div>
 
-        {/* Admin Rename */}
         <div className="mb-2 font-medium">Yönetici Hesabı Yeniden Adlandırma</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
           <Switch isSelected={form.rename_admin} onValueChange={v => setForm(f => ({...f, rename_admin: v}))}>Yeniden adlandır</Switch>
           <Input label="Yeni Ad" value={form.rename_admin_to} onChange={e => setForm(f => ({...f, rename_admin_to: e.target.value}))} />
         </div>
 
-        {/* Açıklama & Kaydet */}
         <div className="mb-2 font-medium">Açıklama</div>
         <Textarea value={form.description || ""} onChange={(e) => setForm(f => ({...f, description: e.target.value}))} />
 
@@ -1135,7 +1107,7 @@ function AuditView() {
     }
   }
 
-  useEffect(() => { load(1); /* filtre değişince başa dön */ }, [action, pageSize]);
+  useEffect(() => { load(1);  }, [action, pageSize]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -1285,7 +1257,6 @@ function CardBox({title, children}:{title: string; children: React.ReactNode}) {
   );
 }
 
-// Simple ModalFrame implementation
 function ModalFrame({title, onClose, children}:{title: string; onClose: () => void; children: React.ReactNode}) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

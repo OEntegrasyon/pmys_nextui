@@ -125,12 +125,10 @@ export default function DocsPage() {
     const q = search.trim().toLowerCase();
     if (!q) return users;
     return users.filter(u => {
-      // user alanlarında ara
       if (u.username.toLowerCase().includes(q)) return true;
       if (u.email.toLowerCase().includes(q)) return true;
       if ((u.first_name || '').toLowerCase().includes(q)) return true;
       if ((u.last_name || '').toLowerCase().includes(q)) return true;
-      // gruplarda grup adı veya organizasyon adı ile eşleşme
       if (u.groups.some(g => (g.name || '').toLowerCase().includes(q))) return true;
       if (u.groups.some(g => (g.organization_name || '').toLowerCase().includes(q))) return true;
       return false;

@@ -23,14 +23,14 @@ type LdapUser = {
   gidNumber?: number;
   homeDirectory?: string;
   isActive?: boolean;
-  groups?: string[]; // group DNs
+  groups?: string[]; 
 };
 
 type LdapGroup = {
   dn: string;
   name: string;
   description?: string;
-  members: string[]; // user DNs
+  members: string[]; 
 };
 
 type LdapOrganization = {
@@ -42,7 +42,7 @@ type LdapOrganization = {
 };
 
 type LdapTree = {
-  domain: string; // e.g. dc=example,dc=org
+  domain: string; 
   organizations: LdapOrganization[];
 };
 
@@ -167,7 +167,7 @@ const api = {
     return {dn, toGroupDn};
   },
 
-  // ---- Export (değişmeden) ----
+  // ---- Export  ----
   async export(scope: { kind: string; dn?: string }, file_format: "ldif" | "pdf" | "json") {
     const qs = new URLSearchParams({ kind: scope.kind, file_format });
     if (scope.dn) qs.set("dn_b64", b64(scope.dn));
@@ -185,7 +185,7 @@ const api = {
     return { filename, blob };
   },
 
-    // ---- Import (yeni) ----
+    // ---- Import ----
   async validateImport(file: File) {
     const fd = new FormData();
     fd.append("file", file);
@@ -195,7 +195,7 @@ const api = {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error || "Doğrulama başarısız");
-    return data; // beklenen: { summary, results, blockers?, items?, planId? ... }
+    return data; 
   },
 
   async applyImport(opts: { file?: File; planId?: string }) {
@@ -208,7 +208,7 @@ const api = {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error || "Apply başarısız");
-    return data; // beklenen: { ok: true, applied: {...} } vb.
+    return data; 
   },
 
 };
@@ -225,7 +225,6 @@ function findUser(org: LdapOrganization, userDn: string) {
   return org.users.find((u) => u.dn === userDn);
 }
 
-// Flatten helpers for selects
 function useOrgOptions(tree: LdapTree | null) {
   return useMemo(() => tree?.organizations.map((o) => ({key: o.dn, label: o.name})) ?? [], [tree]);
 }
@@ -237,7 +236,6 @@ function useGroupOptions(tree: LdapTree | null, orgDn?: string) {
   }, [tree, orgDn]);
 }
 
-// Build tree nodes for rendering + search filtering
 function buildTreeNodes(tree: LdapTree, query: string) {
   const q = query.trim().toLowerCase();
   const match = (s: string | undefined) => (q ? (s || "").toLowerCase().includes(q) : true);
@@ -288,7 +286,6 @@ function buildTreeNodes(tree: LdapTree, query: string) {
       }
     }
 
-    // Users directly under org (not in any group)
     const directUsers = org.users.filter((u) => !org.groups.some((g) => g.members.includes(u.dn)));
     for (const usr of directUsers) {
       const usrNode = {
@@ -317,7 +314,6 @@ export default function LdapManagementPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<TreeNodeRef | null>(null);
 
-  // Modals & forms
   const [orgModalOpen, setOrgModalOpen] = useState(false);
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
@@ -352,12 +348,11 @@ export default function LdapManagementPage() {
 
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
-  const [importPreview, setImportPreview] = useState<any | null>(null); // validate sonucu
+  const [importPreview, setImportPreview] = useState<any | null>(null); 
   const [validating, setValidating] = useState(false);
   const [applying, setApplying] = useState(false);
 
 
-  // suggestIds otomatiği (mevcut)
   useEffect(() => {
     if (!userModalOpen) return;
     if (!userForm.organizationDn || !userForm.groupDn) return;
@@ -371,7 +366,6 @@ export default function LdapManagementPage() {
       .catch((e) => console.error("suggestIds error:", e));
   }, [userModalOpen, userForm.organizationDn, userForm.groupDn, userForm.manualUidGid, userForm.dn]);
 
-  // Load
   const load = async () => {
     try {
       setLoading(true);
@@ -387,7 +381,6 @@ export default function LdapManagementPage() {
   };
   useEffect(() => { load(); }, []);
 
-  // Expand helpers
   const toggle = (dn: string) => {
     setExpanded((prev) => {
       const n = new Set(prev);
@@ -408,7 +401,6 @@ export default function LdapManagementPage() {
   };
   const collapseAll = () => setExpanded(new Set());
 
-  // Node selection => populate detail/actions
   const currentDetails = useMemo(() => {
     if (!tree || !selected) return null;
     if (selected.kind === "domain") return {kind: selected.kind, node: {dn: tree.domain}};
@@ -433,7 +425,7 @@ export default function LdapManagementPage() {
     return null;
   }, [selected, tree]);
 
-  // ===================== CRUD handlers (mevcut) =====================
+  // ===================== CRUD handlers  =====================
   const handleOpenCreateOrg = () => { setOrgForm({name: "", description: ""}); setOrgModalOpen(true); };
   const handleOpenEditOrg = (org: LdapOrganization) => { setOrgForm({dn: org.dn, name: org.name, description: org.description}); setOrgModalOpen(true); };
   const handleSubmitOrg = async () => {
@@ -645,7 +637,6 @@ export default function LdapManagementPage() {
     setUserModalOpen(false);
   };
 
-  // Org içindeki diğer kullanıcıların uidNumber set'i:
   const takenUidNumbers = useMemo(() => {
     if (!tree || !userForm.organizationDn) return new Set<number>();
     const org = findOrg(tree, userForm.organizationDn);
@@ -656,7 +647,6 @@ export default function LdapManagementPage() {
     return s;
   }, [tree, userForm.organizationDn, userForm.dn]);
 
-  // Hata bayrakları:
   const uidNumError = !!userForm.manualUidGid && (
     userForm.uidNumber == null ||
     Number.isNaN(Number(userForm.uidNumber)) ||
@@ -664,13 +654,11 @@ export default function LdapManagementPage() {
     takenUidNumbers.has(Number(userForm.uidNumber))
   );
 
-  // Home otomatik mi?
   const computedHome = useMemo(() => {
     const u = (userForm.uid || "").trim();
     return u ? `/home/${u}` : "";
   }, [userForm.uid]);
 
-  // uid değişince, home manuel değilse güncelle
   useEffect(() => {
     if (!userForm.manualHome) setUserForm((f) => ({ ...f, homeDirectory: computedHome }));
   }, [computedHome, userForm.manualHome]);
@@ -717,7 +705,6 @@ export default function LdapManagementPage() {
     setMoveUserModalOpen(false);
   };
 
-  // Export (hiç dokunmadım)
   const handleExport = async () => {
     if (!tree) return;
     const scope = selected ?? { kind: "domain", dn: tree.domain };
@@ -778,7 +765,6 @@ export default function LdapManagementPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Left: Tree */}
           <div className="lg:col-span-1 border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
               <div className="font-semibold">LDAP Ağacı</div>
@@ -793,7 +779,6 @@ export default function LdapManagementPage() {
             </div>
           </div>
 
-          {/* Right: Details */}
           <div className="lg:col-span-2 border border-gray-200 rounded-2xl shadow-sm flex flex-col overflow-hidden">
             <div className="px-6 pt-6 pb-2 flex items-center justify-between sticky top-0 bg-white z-10">
               <h2 className="text-xl font-semibold">Detaylar</h2>
@@ -845,7 +830,6 @@ export default function LdapManagementPage() {
 
       {/* ===================== Modals ===================== */}
 
-      {/* Organization modal */}
       {orgModalOpen && (
         <ModalFrame title={orgForm.dn ? "Organizasyonu Düzenle" : "Yeni Organizasyon"} onClose={() => setOrgModalOpen(false)}>
           <div className="space-y-3">
@@ -859,7 +843,6 @@ export default function LdapManagementPage() {
         </ModalFrame>
       )}
 
-      {/* Group modal */}
       {groupModalOpen && (
         <ModalFrame title={groupForm.dn ? "Grubu Düzenle" : "Yeni Grup"} onClose={() => setGroupModalOpen(false)}>
           <div className="space-y-3">
@@ -883,7 +866,6 @@ export default function LdapManagementPage() {
         </ModalFrame>
       )}
 
-      {/* User modal */}
       {userModalOpen && (
         <ModalFrame title={userForm.dn ? "Kullanıcıyı Düzenle" : "Yeni Kullanıcı"} onClose={() => setUserModalOpen(false)}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -916,7 +898,6 @@ export default function LdapManagementPage() {
             <Input label="Telefon" value={userForm.phone || ""} onChange={(e) => setUserForm((f) => ({...f, phone: e.target.value}))} />
             <Input label="Parola" type="password" placeholder={userForm.dn ? "Mevcut parolayı değiştirmek için girin" : "Yeni kullanıcı için parola"} value={userForm.userPassword || ""} onChange={(e) => setUserForm((f) => ({ ...f, userPassword: e.target.value }))} />
 
-            {/* UID/GID manuel/otomatik */}
             <div className="md:col-span-2 flex items-center justify-between mt-2">
               <div className="text-xs text-gray-500">uidNumber / gidNumber (varsayılan: LDAP otomatik)</div>
               <div className="flex gap-2">
@@ -942,7 +923,6 @@ export default function LdapManagementPage() {
               description={!userForm.manualUidGid ? "LDAP otomatik atayacak." : `En az ${MIN_UID_GID}.`}
               onChange={(e) => setUserForm((f) => ({ ...f, gidNumber: e.target.value ? Number(e.target.value) : undefined }))} />
 
-            {/* Home manuel/otomatik */}
             <div className="md:col-span-2 flex items-center justify-between mt-2">
               <div className="text-xs text-gray-500">Home Directory (varsayılan: /home/$uid)</div>
               <div className="flex gap-2">
@@ -966,7 +946,6 @@ export default function LdapManagementPage() {
         </ModalFrame>
       )}
 
-      {/* Move user modal */}
       {moveUserModalOpen && (
         <ModalFrame title="Kullanıcıyı Taşı" onClose={() => setMoveUserModalOpen(false)}>
           <div className="space-y-3">
@@ -988,7 +967,6 @@ export default function LdapManagementPage() {
         </ModalFrame>
       )}
 
-      {/* Export Modal (değişmedi) */}
       {exportModalOpen && (
         <ModalFrame title="Dışa Aktar" onClose={() => setExportModalOpen(false)}>
           <div className="space-y-4">
@@ -1007,7 +985,6 @@ export default function LdapManagementPage() {
           </div>
         </ModalFrame>
       )}
-            {/* Import Modal (yeni) */}
       {importModalOpen && (
         <ModalFrame title="İçe Aktar" onClose={() => {
           setImportModalOpen(false);
@@ -1017,7 +994,6 @@ export default function LdapManagementPage() {
           setApplying(false);
         }}>
           <div className="space-y-4">
-            {/* Adım 1: Dosya seç */}
             <div className="rounded-xl border p-4 space-y-2">
               <div className="font-semibold">1) Dosya Seç (.json veya .ldif)</div>
               <input
@@ -1056,12 +1032,10 @@ export default function LdapManagementPage() {
               </div>
             </div>
 
-            {/* Adım 2: Önizleme / Özet */}
             {importPreview && (
               <div className="rounded-xl border p-4 space-y-3">
                 <div className="font-semibold">2) Önizleme & Özet</div>
 
-                {/* Özet sayıları (varsa) */}
                 {importPreview.summary && (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {Object.entries(importPreview.summary).map(([k,v]: any) => (
@@ -1073,7 +1047,6 @@ export default function LdapManagementPage() {
                   </div>
                 )}
 
-                {/* Bloklayıcılar (varsa) */}
                 {Array.isArray(importPreview.blockers) && importPreview.blockers.length > 0 && (
                   <div className="rounded-lg border border-red-200 p-3">
                     <div className="font-medium text-red-700 mb-2">Bloklayıcılar</div>
@@ -1095,7 +1068,6 @@ export default function LdapManagementPage() {
                   </div>
                 )}
 
-                {/* Eklenecek/Güncellenecek kalemlerin listeleri (varsa) */}
                 {Array.isArray(importPreview.items) && importPreview.items.length > 0 && (
                   <div className="space-y-2">
                     <div className="font-medium">Planlanan İşlemler</div>
@@ -1120,7 +1092,6 @@ export default function LdapManagementPage() {
                   </div>
                 )}
 
-                {/* Ham JSON göster (debug için) */}
                 <details className="rounded-lg border p-3">
                   <summary className="cursor-pointer text-sm">Ham doğrulama çıktısı (JSON)</summary>
                   <pre className="text-xs mt-2 overflow-auto max-h-72">
@@ -1130,7 +1101,6 @@ export default function LdapManagementPage() {
               </div>
             )}
 
-            {/* Adım 3: Uygula */}
             <div className="flex justify-end gap-2">
               <Button variant="bordered" onPress={() => {
                 setImportModalOpen(false);
@@ -1152,7 +1122,6 @@ export default function LdapManagementPage() {
                     setApplying(true);
                     const planId = importPreview?.planId as (string | undefined);
                     const r = await api.applyImport({ planId, file: planId ? undefined : importFile });
-                    // başarılı -> modal kapat + ağaç yenile
                     setImportModalOpen(false);
                     setImportFile(null);
                     setImportPreview(null);
@@ -1251,9 +1220,7 @@ function TreeNode({node, level, expanded, selected, onToggle, onSelect}: TreeNod
   );
 }
 
-// ===================== ModalFrame (güncellendi: iç scroll + sticky header/footer) =====================
 function ModalFrame({title, onClose, children, footer}: {title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode}) {
-  // arka plan scroll kilidi
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1269,18 +1236,15 @@ function ModalFrame({title, onClose, children, footer}: {title: string; onClose:
           max-h-[92dvh] rounded-2xl shadow-xl overflow-hidden flex flex-col
         "
       >
-        {/* Header */}
         <div className="sticky top-0 z-10 bg-white border-b px-5 py-3 flex items-center gap-3">
           <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
           <button onClick={onClose} className="ml-auto text-gray-600 hover:text-gray-900"><CloseIcon /></button>
         </div>
 
-        {/* Body (scrollable) */}
         <div className="flex-1 min-h-0 overflow-y-auto p-4">
           {children}
         </div>
 
-        {/* Footer (optional, sticky) */}
         {footer && (
           <div className="sticky bottom-0 z-10 bg-white border-t px-5 py-3">
             {footer}

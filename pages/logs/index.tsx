@@ -73,8 +73,8 @@ export default function LogsPage() {
     user_policy_assignments: { current: 1, total: 0 },
     user_policy_logs: { current: 1, total: 0 },
     client_status_logs: { current: 1, total: 0 },
-    client_policy_assignments: { current: 1, total: 0 }, // YENİ
-    client_policy_logs: { current: 1, total: 0 }, // YENİ
+    client_policy_assignments: { current: 1, total: 0 }, 
+    client_policy_logs: { current: 1, total: 0 }, 
   });
 
   const [loading, setLoading] = useState<Record<string, boolean>>({});

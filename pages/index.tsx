@@ -23,14 +23,14 @@ export default function IndexPage() {
   const fetchUsers = () => {
     fetch(`${API_BASE}/user/users/`)
       .then(res => res.json())
-      .then(data => setUser(data.results)) // DÜZELTME: Sadece 'results' dizisini state'e ata
+      .then(data => setUser(data.results))
       .catch(err => console.error('Error fetching users:'));
   };
 
   const fetchClients = () => {
     fetch(`${API_BASE}/client/clients/`)
       .then(res => res.json())
-      .then(data => setClient(data.results)) // DÜZELTME: Sadece 'results' dizisini state'e ata
+      .then(data => setClient(data.results)) 
       .catch(err => console.error('Error fetching clients:'));
   };
 

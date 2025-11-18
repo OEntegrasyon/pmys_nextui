@@ -371,13 +371,11 @@ export const LdapPolicyIcon = ({ size = 24, ...props }: IconSvgProps) => (
     strokeWidth={1.5}
     {...props}
   >
-    {/* Shield */}
     <path
       d="M12 3.5l6 2.2v5.2c0 3.9-2.6 7.5-6 8.6-3.4-1.1-6-4.7-6-8.6V5.7l6-2.2z"
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-    {/* Keyhole */}
     <circle cx="12" cy="11.5" r="1.4" />
     <path d="M12 13v2.2" strokeLinecap="round" />
   </svg>
@@ -398,7 +396,6 @@ export const LapsIcon = ({
       width={size}
       {...props}
     >
-      {/* Kilit gövdesi */}
       <rect
         x="6.75"
         y="10.5"
@@ -407,13 +404,11 @@ export const LapsIcon = ({
         rx="2"
         ry="2"
       />
-      {/* Kilit üst halka */}
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M8.25 10.5V7.5a3.75 3.75 0 017.5 0v3"
       />
-      {/* Anahtar deliği */}
       <circle cx="12" cy="15" r="1.25" fill="currentColor" />
       <path
         strokeLinecap="round"
