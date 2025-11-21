@@ -1,25 +1,27 @@
-import React from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import DefaultLayout from "@/layouts/default";
-import { useEffect, useState, useMemo } from 'react';
-import { Chip} from "@heroui/chip";
-import { Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Selection} from "@heroui/table"; 
+import { Chip } from "@heroui/chip";
+import { Table, TableHeader, TableBody, TableColumn, TableRow, TableCell, Selection } from "@heroui/table";
 import { Input } from "@heroui/input";
 import { Button } from "@heroui/button";
 import { Checkbox, CheckboxGroup } from "@heroui/checkbox";
 import { PCIcon } from "@/components/icons";
-import { addToast } from "@heroui/toast"; 
+import { addToast } from "@heroui/toast";
+
+// ===================== TİPLER =====================
 
 type Policy = {
   id: number;
   name: string;
   description: string;
-  is_cis: boolean; 
+  is_cis: boolean;
 };
+
 type Client = {
   id: number;
   uuid: string;
   ip_address: string;
-  mac_address: string; 
+  mac_address: string;
   hostname: string;
   description: string;
   is_active: boolean;
@@ -43,12 +45,16 @@ export default function ClientsPolicyPage() {
   const [selectedPolicyIds, setSelectedPolicyIds] = useState<string[]>([]);
   const [policySearchTerm, setPolicySearchTerm] = useState("");
 
+  const [isEditing, setIsEditing] = useState(false);
+  const prevSelectionRef = useRef(selectedClientKeys);
+
   const fetchClients = () => {
     fetch(`${API_BASE}/client/clients/`)
       .then(res => res.json())
-      .then(data => setClients(data.results || [])) 
+      .then(data => setClients(data.results || []))
       .catch(err => console.error('Error fetching clients:', err));
   };
+
   const fetchPolicies = () => {
     fetch(`${API_BASE}/policy/policies/?paginate=false`)
       .then(res => res.json())
@@ -58,21 +64,30 @@ export default function ClientsPolicyPage() {
 
   useEffect(() => {
     fetchClients();
-    fetchPolicies(); 
-    const intervalId = setInterval(fetchClients, 15000);
+    fetchPolicies();
+    const intervalId = setInterval(fetchClients, 15000); 
     return () => clearInterval(intervalId);
   }, []);
 
   const filteredPolicies = useMemo(() => {
     if (!policySearchTerm) return policies;
-    return policies.filter(p => 
+    return policies.filter(p =>
       p.name.toLowerCase().includes(policySearchTerm.toLowerCase()) ||
       p.description.toLowerCase().includes(policySearchTerm.toLowerCase())
     );
   }, [policies, policySearchTerm]);
 
-
   useEffect(() => {
+    const isSelectionChanged = prevSelectionRef.current !== selectedClientKeys;
+
+    if (isSelectionChanged) {
+      setIsEditing(false);
+      prevSelectionRef.current = selectedClientKeys;
+    }
+
+    if (!isSelectionChanged && isEditing) {
+      return;
+    }
 
     const selectedIds = new Set(
       Array.from(selectedClientKeys as Set<string | number>).map(String)
@@ -94,11 +109,10 @@ export default function ClientsPolicyPage() {
 
     setSelectedPolicyIds(Array.from(policyIdsToShow));
 
-  }, [selectedClientKeys, clients]); 
+  }, [selectedClientKeys, clients, isEditing]); 
 
   const handlePolicyAssignment = async () => {
     const clientIds = Array.from(selectedClientKeys as Set<string | number>);
-
     const policyIdsToAssign = selectedPolicyIds.map(id => parseInt(id, 10));
 
     if (clientIds.length === 0) {
@@ -125,8 +139,8 @@ export default function ClientsPolicyPage() {
         if (!response.ok) {
           throw new Error(`İstemci ${client.hostname} güncellenemedi.`);
         }
-        
-        setClients(prevClients => prevClients.map(c => 
+
+        setClients(prevClients => prevClients.map(c =>
           c.id.toString() === clientId.toString()
             ? { ...c, policies: policyIdsToAssign.map(id => policies.find(p => p.id === id)!).filter(Boolean) }
             : c
@@ -140,7 +154,9 @@ export default function ClientsPolicyPage() {
           timeout: 5000,
         });
       }
-    } 
+    }
+
+    setIsEditing(false);
 
     addToast({
       title: "Başarılı",
@@ -148,7 +164,6 @@ export default function ClientsPolicyPage() {
       color: "success",
       timeout: 5000,
     });
-
   };
 
   const columns = [
@@ -170,26 +185,24 @@ export default function ClientsPolicyPage() {
     }
   };
 
-
   return (
     <DefaultLayout>
       <section className="flex flex-col gap-6 py-8 md:py-10">
         <div className="flex justify-between items-center">
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <PCIcon className="text-blue-600"/>
+            <PCIcon className="text-blue-600" />
             İstemci Yönetimi ve Politika Atama
           </h1>
         </div>
 
         <div className="flex flex-col gap-6">
-          
           <div>
             <div className="inline-block w-full overflow-x-auto shadow rounded-2xl border border-gray-200 overflow-y-auto max-h-150">
-              <Table 
+              <Table
                 aria-label="İstemciler tablosu"
-                selectionMode="multiple" 
-                selectedKeys={selectedClientKeys} 
-                onSelectionChange={setSelectedClientKeys} 
+                selectionMode="multiple"
+                selectedKeys={selectedClientKeys}
+                onSelectionChange={setSelectedClientKeys}
               >
                 <TableHeader columns={columns}>
                   {(column) => <TableColumn key={column.key}>{column.label}</TableColumn>}
@@ -207,21 +220,20 @@ export default function ClientsPolicyPage() {
           <div>
             <div className="p-6 shadow rounded-2xl border border-gray-200 bg-white flex flex-col gap-4">
               <h2 className="text-xl font-semibold">Politika Ata</h2>
-              
               <Input
                 aria-label="Politika Ara"
                 placeholder="Politika ara..."
                 value={policySearchTerm}
                 onValueChange={setPolicySearchTerm}
-                startContent={<SearchIcon className="w-5 h-5 text-gray-400"/>}
+                startContent={<SearchIcon className="w-5 h-5 text-gray-400" />}
               />
 
               <div className="flex justify-between items-center">
                 <p className="text-sm text-gray-600">
                   Seçili İstemciler: {
-                    selectedClientKeys === "all" 
-                      ? clients.length 
-                      : (selectedClientKeys as Set<string>).size 
+                    selectedClientKeys === "all"
+                      ? clients.length
+                      : (selectedClientKeys as Set<string>).size
                   }
                 </p>
                 <p className="text-sm text-gray-600 font-medium">
@@ -232,13 +244,16 @@ export default function ClientsPolicyPage() {
               <CheckboxGroup
                 label="Mevcut Politikalar"
                 value={selectedPolicyIds}
-                onValueChange={setSelectedPolicyIds}
-                className="max-h-96 overflow-y-auto pr-2" 
+                onValueChange={(val) => {
+                  setIsEditing(true);
+                  setSelectedPolicyIds(val);
+                }}
+                className="max-h-96 overflow-y-auto pr-2"
               >
                 {filteredPolicies.length > 0 ? (
                   filteredPolicies.map(policy => (
-                    <Checkbox 
-                      key={policy.id} 
+                    <Checkbox
+                      key={policy.id}
                       value={policy.id.toString()}
                     >
                       {policy.name} {policy.is_cis && "(CIS)"}
@@ -246,21 +261,21 @@ export default function ClientsPolicyPage() {
                   ))
                 ) : (
                   <p className="text-sm text-gray-500">
-                    {policySearchTerm 
-                      ? "Aramayla eşleşen politika bulunamadı." 
+                    {policySearchTerm
+                      ? "Aramayla eşleşen politika bulunamadı."
                       : (policies.length > 0 ? "Tüm politikalar listelendi." : "Yükleniyor...")
                     }
                   </p>
                 )}
               </CheckboxGroup>
 
-              <Button 
+              <Button
                 color="primary"
-                onClick={handlePolicyAssignment}  
+                onClick={handlePolicyAssignment}
                 isDisabled={(selectedClientKeys as Set<string>).size === 0}
               >
                 Seçili Politikaları Güncelle
-              </Button>         
+              </Button>
               <p className="text-xs text-gray-500 mt-2">
               </p>
             </div>
